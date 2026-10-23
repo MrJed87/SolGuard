@@ -1,0 +1,2760 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Daily UV forecast, sun protection times and sunburn risk for any Australian postcode or suburb." />
+  <meta name="theme-color" content="#fffbeb" />
+  <title>SolGuard — Daily UV &amp; Sunburn Risk Tracker</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="SolGuard" />
+  <link rel="stylesheet" href="assets/tailwind.css?v=0.6.3" />
+  <link rel="preload" href="assets/fonts/inter-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin />
+  <script src="assets/chart.umd.min.js"></script>
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(180deg, #fffbeb 0%, #f8fafc 45%, #f1f5f9 100%);
+      min-height: 100vh;
+      color: #0f172a;
+    }
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+    /* Track colours come from the day's real UV curve (set by updateSliderTrack in JS) */
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 8px;
+      border-radius: 9999px;
+      background: var(--slider-track, #e2e8f0);
+    }
+    input[type="range"]::-moz-range-track {
+      height: 8px;
+      border-radius: 9999px;
+      background: var(--slider-track, #e2e8f0);
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 9999px;
+      background: #ffffff;
+      border: 3px solid #0f172a;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25);
+      margin-top: -7px;
+      transition: transform 0.15s ease;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.12);
+    }
+    /* Firefox needs its own thumb rules, otherwise the slider is invisible once appearance is removed */
+    input[type="range"]::-moz-range-thumb {
+      box-sizing: border-box;
+      width: 22px;
+      height: 22px;
+      border-radius: 9999px;
+      background: #ffffff;
+      border: 3px solid #0f172a;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25);
+      transition: transform 0.15s ease;
+    }
+    input[type="range"]::-moz-range-thumb:hover {
+      transform: scale(1.12);
+    }
+    input[type="range"]:focus {
+      outline: none;
+    }
+    input[type="range"]:focus-visible::-webkit-slider-thumb {
+      box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.45);
+    }
+    input[type="range"]:focus-visible::-moz-range-thumb {
+      box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.45);
+    }
+    .uv-card-shadow {
+      box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.06), 0 4px 12px -2px rgba(15, 23, 42, 0.04);
+    }
+    .gauge-arc {
+      transition: stroke-dashoffset 0.55s cubic-bezier(0.22, 1, 0.36, 1), stroke 0.35s ease;
+    }
+    /* Smooth collapsible header drawer on mobile scroll */
+    #headerControlsDrawer {
+      transition: max-height 0.25s ease, opacity 0.2s ease, margin 0.2s ease;
+      max-height: 260px;
+      opacity: 1;
+      overflow: hidden;
+    }
+    header.header-compact #headerControlsDrawer {
+      max-height: 0;
+      opacity: 0;
+      margin-top: 0 !important;
+      pointer-events: none;
+    }
+    @media (min-width: 1024px) {
+      header.header-compact #headerControlsDrawer {
+        max-height: 260px;
+        opacity: 1;
+        pointer-events: auto;
+      }
+    }
+  </style>
+</head>
+<body class="antialiased pb-12">
+  <!-- Top Header & Collapsible Postcode / GPS Search Bar -->
+  <div id="headerSpacer" aria-hidden="true"></div>
+  <header id="mainHeader" class="fixed top-0 inset-x-0 z-30 backdrop-blur-md bg-white/90 border-b border-amber-200/60 transition-all">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-2.5 sm:py-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2.5">
+      <!-- Top Row: Brand + Compact Mobile Location Pill / Expand Button -->
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-400 via-orange-500 to-rose-500 flex items-center justify-center text-white shadow-sm shrink-0">
+            <svg class="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="4"></circle>
+              <path stroke-linecap="round" d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M4.93 19.07l1.41-1.41m11.32-11.32l1.41-1.41"></path>
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-slate-900">SolGuard UV</h1>
+              <span id="dataSourceBadge" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span id="dataSourceText">Fetching UV...</span>
+              </span>
+              <span id="storageSavedBadge" class="hidden items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                Saved
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-500 truncate" id="currentDateDisplay">Daily Sunburn Risk &amp; UV Exposure Planner</p>
+          </div>
+        </div>
+
+        <!-- Mobile-only button to expand location controls when scrolled down -->
+        <button
+          type="button"
+          id="mobileExpandHeaderBtn"
+          class="lg:hidden inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold border border-slate-200 transition shrink-0"
+          title="Show or hide postcode search controls"
+        >
+          <span id="mobileHeaderPostcodeLabel">2000</span>
+          <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Collapsible Drawer on Mobile Scroll: Postcode Search, GPS Get Location, Auto-Locate & Presets -->
+      <div id="headerControlsDrawer" class="flex flex-col gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+          <form id="postcodeForm" class="flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-xl border border-slate-200 focus-within:border-amber-500 focus-within:bg-white focus-within:ring-2 focus-within:ring-amber-200 transition">
+            <div class="pl-2 text-slate-500">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+            </div>
+            <input
+              id="postcodeInput"
+              type="text"
+              inputmode="text"
+              maxlength="60"
+              autocomplete="off"
+              enterkeyhint="search"
+              value="2000"
+              placeholder="Postcode or suburb"
+              aria-label="Enter a postcode or suburb"
+              class="bg-transparent text-sm font-semibold text-slate-900 placeholder-slate-500 focus:outline-none w-36 sm:w-52 px-1 py-1"
+            />
+            <button
+              type="submit"
+              id="lookupBtn"
+              class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 active:scale-[0.99] text-white text-xs font-semibold transition flex items-center gap-1 shadow-sm"
+            >
+              <span>Check UV</span>
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+              </svg>
+            </button>
+          </form>
+
+          <!-- Get Current Location Button -->
+          <button
+            type="button"
+            id="getLocationBtn"
+            class="px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 active:scale-[0.99] text-amber-900 border border-amber-300 text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+            title="Use device GPS location"
+          >
+            <svg id="getLocationIcon" class="w-4 h-4 text-amber-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2m15.364-5.364l-1.414 1.414M8.05 15.95l-1.414 1.414m0-11.314l1.414 1.414m7.9 7.9l1.414 1.414"/>
+              <circle cx="12" cy="12" r="4"/>
+            </svg>
+            <span id="getLocationBtnText">Get Location</span>
+          </button>
+
+          <!-- Auto-Locate on Startup Toggle -->
+          <label
+            for="autoLocateToggle"
+            class="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 cursor-pointer select-none transition"
+            title="Automatically fetch your GPS location when the app opens"
+          >
+            <input
+              type="checkbox"
+              id="autoLocateToggle"
+              class="sr-only peer"
+            />
+            <div class="w-8 h-4 bg-slate-300 peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-400 rounded-full peer peer-checked:after:translate-x-4 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all relative peer-checked:bg-emerald-600"></div>
+            <span class="text-[11px] font-semibold text-slate-700 whitespace-nowrap">Auto-locate on start</span>
+          </label>
+        </div>
+
+        <!-- Quick Postcode Presets -->
+        <div class="flex items-center gap-1 overflow-x-auto pb-0.5 sm:pb-0" id="presetBar">
+          <button type="button" data-postcode="2000" class="preset-btn px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300 transition whitespace-nowrap">2000 Sydney</button>
+          <button type="button" data-postcode="2500" class="preset-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 transition whitespace-nowrap">2500 Wollongong</button>
+          <button type="button" data-postcode="3000" class="preset-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 transition whitespace-nowrap">3000 Melbourne</button>
+          <button type="button" data-postcode="4000" class="preset-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 transition whitespace-nowrap">4000 Brisbane</button>
+          <button type="button" data-postcode="6000" class="preset-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 transition whitespace-nowrap">6000 Perth</button>
+          <button type="button" data-postcode="0800" class="preset-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 transition whitespace-nowrap">0800 Darwin</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 pt-5 space-y-5">
+
+    <!-- Status / Feedback Banner -->
+    <div id="statusToast" class="hidden rounded-xl px-4 py-2.5 text-xs font-medium flex items-center justify-between border">
+      <span id="statusToastMsg"></span>
+      <button type="button" id="closeToastBtn" class="ml-4 font-bold opacity-70 hover:opacity-100">&times;</button>
+    </div>
+
+    <!-- Place search results (shown when a suburb name matches several places) -->
+    <section id="placeResultsCard" class="hidden bg-white rounded-2xl p-4 border border-slate-200/80 uv-card-shadow">
+      <div class="flex items-center justify-between mb-2">
+        <h2 id="placeResultsTitle" class="text-sm font-bold text-slate-900">Which place did you mean?</h2>
+        <button type="button" id="closePlaceResultsBtn" class="text-lg leading-none font-bold text-slate-500 hover:text-slate-800" aria-label="Close place results">&times;</button>
+      </div>
+      <div id="placeResultsList" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+    </section>
+
+    <!-- Location & Protection Window Summary Strip -->
+    <section class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 uv-card-shadow">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div class="space-y-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <span id="locationPostcodePill" class="px-2.5 py-0.5 rounded-md bg-slate-900 text-white text-xs font-bold tracking-wide">2000</span>
+            <h2 id="locationNameDisplay" class="text-xl sm:text-2xl font-extrabold text-slate-900">Sydney CBD, NSW</h2>
+            <span id="coordsDisplay" class="text-xs text-slate-500 font-mono">(-34.58°, 150.87°)</span>
+            <span id="updatedDisplay" class="text-xs text-slate-500"></span>
+          </div>
+          <p id="dailySummarySentence" class="text-sm text-slate-600">
+            Calculating today's UV protection window and peak sunburn risk...
+          </p>
+          <p id="nowStatusSentence" class="text-sm font-bold text-slate-900" aria-live="polite"></p>
+        </div>
+
+        <!-- 3 Key Daily Window Pills -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 shrink-0">
+          <div class="px-3.5 py-2.5 rounded-xl bg-amber-50/90 border border-amber-200/80">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-amber-800 flex items-center gap-1">
+              <svg class="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+              </svg>
+              Sun Protection Required (UV ≥ 3)
+            </div>
+            <div id="protectionWindowDisplay" class="text-base font-extrabold text-slate-900 mt-0.5">9:15 AM – 4:45 PM</div>
+          </div>
+
+          <div class="px-3.5 py-2.5 rounded-xl bg-rose-50/90 border border-rose-200/80">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-rose-800 flex items-center gap-1">
+              <svg class="w-3.5 h-3.5 text-rose-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+              </svg>
+              Today's Peak UV
+            </div>
+            <div id="peakUvDisplay" class="text-base font-extrabold text-slate-900 mt-0.5">8.0 at 1:00 PM</div>
+          </div>
+
+          <div class="px-3.5 py-2.5 rounded-xl bg-emerald-50/90 border border-emerald-200/80">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-emerald-800 flex items-center gap-1">
+              <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+              </svg>
+              Low-Risk Outdoor Times
+            </div>
+            <div id="safeWindowDisplay" class="text-base font-extrabold text-slate-900 mt-0.5">Before 9:15 AM &amp; After 4:45 PM</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Primary Interactive Grid: Left = UV Snapshot + Time Scrubber + Burn Time; Right = Full-Day UV Forecast Curve -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+      <!-- Left Column (6 cols): Selected Time Snapshot, Time Scrubber, & Burn Time Calculator -->
+      <section class="lg:col-span-6 bg-white rounded-2xl p-5 border border-slate-200/80 uv-card-shadow flex flex-col justify-between space-y-4">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <div>
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Selected Time Snapshot</span>
+              <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                <span id="selectedHourTitle">10:00 AM</span>
+                <span id="selectedHourNowTag" class="px-2 py-0.5 text-[11px] font-semibold rounded-md bg-slate-100 text-slate-700">Current Hour</span>
+              </h3>
+            </div>
+            <button
+              type="button"
+              id="jumpToPeakBtn"
+              class="text-xs font-semibold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-lg border border-amber-200 transition"
+            >
+              Jump to Peak UV
+            </button>
+          </div>
+
+          <!-- Semicircle SVG Gauge (Scale numbers positioned outside the 16px stroke so they never collide with the bar) -->
+          <div class="relative flex flex-col items-center justify-center pt-1 pb-1">
+            <svg class="w-full max-w-[280px] h-auto overflow-visible" viewBox="0 0 220 125">
+              <defs>
+                <linearGradient id="uvGaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stop-color="#10b981" />
+                  <stop offset="25%" stop-color="#f59e0b" />
+                  <stop offset="50%" stop-color="#f97316" />
+                  <stop offset="75%" stop-color="#ef4444" />
+                  <stop offset="100%" stop-color="#8b5cf6" />
+                </linearGradient>
+              </defs>
+              <!-- Background Track (Center 110, 105, Radius 80) -->
+              <path
+                d="M 30 105 A 80 80 0 0 1 190 105"
+                fill="none"
+                stroke="#f1f5f9"
+                stroke-width="16"
+                stroke-linecap="round"
+              />
+              <!-- Active UV Arc (circumference of r=80 half circle is pi*80 = 251.3) -->
+              <path
+                id="uvGaugeArc"
+                class="gauge-arc"
+                d="M 30 105 A 80 80 0 0 1 190 105"
+                fill="none"
+                stroke="url(#uvGaugeGrad)"
+                stroke-width="16"
+                stroke-linecap="round"
+                stroke-dasharray="251.3"
+                stroke-dashoffset="125"
+              />
+              <!-- Outer Scale Labels (Placed at radius ~99 outside the 16px stroke for high contrast) -->
+              <text x="12" y="109" text-anchor="middle" class="text-[10px] fill-slate-500 font-bold">0</text>
+              <text x="32" y="44" text-anchor="middle" class="text-[10px] fill-slate-500 font-bold">3</text>
+              <text x="110" y="9" text-anchor="middle" class="text-[10px] fill-slate-500 font-bold">7</text>
+              <text x="188" y="44" text-anchor="middle" class="text-[10px] fill-slate-500 font-bold">11</text>
+              <text x="208" y="109" text-anchor="middle" class="text-[10px] fill-slate-500 font-bold">14+</text>
+            </svg>
+
+            <!-- Center Readout inside Gauge -->
+            <div class="-mt-16 text-center">
+              <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">UV Index</div>
+              <div id="uvIndexBigNumber" class="text-5xl font-black tracking-tight text-slate-900">4.7</div>
+              <div class="mt-1">
+                <span id="uvCategoryPill" class="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300">
+                  Moderate Risk
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Weather & Clear Sky Sub-metrics -->
+          <div class="grid grid-cols-3 gap-2 pt-3 border-t border-slate-100 text-center">
+            <div class="p-2 rounded-xl bg-slate-50">
+              <div class="text-[11px] text-slate-500 font-medium">Clear-Sky UV</div>
+              <div id="clearSkyUvVal" class="text-sm font-bold text-slate-800 mt-0.5">4.7</div>
+            </div>
+            <div class="p-2 rounded-xl bg-slate-50">
+              <div class="text-[11px] text-slate-500 font-medium">Cloud Cover</div>
+              <div id="cloudCoverVal" class="text-sm font-bold text-slate-800 mt-0.5">4%</div>
+            </div>
+            <div class="p-2 rounded-xl bg-slate-50">
+              <div class="text-[11px] text-slate-500 font-medium">Temperature</div>
+              <div id="tempVal" class="text-sm font-bold text-slate-800 mt-0.5">21°C</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Interactive Time Scrubber Slider + Hourly Mini Strip (Uniform 3-hour axis ticks: 5 AM, 8 AM, 11 AM, 2 PM, 5 PM, 8 PM) -->
+        <div class="bg-slate-50/90 rounded-2xl p-3.5 border border-slate-200/80 space-y-3">
+          <div class="space-y-2">
+            <div class="flex items-center justify-between text-xs gap-2">
+              <label for="hourSlider" class="font-bold text-slate-700 flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-amber-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10"/><path stroke-linecap="round" d="M12 6v6l4 2"/>
+                </svg>
+                <span>Scrub Time of Day to Inspect Burn Risk:</span>
+              </label>
+              <div class="flex items-center gap-2 shrink-0">
+                <span id="sliderTimeReadout" class="font-extrabold text-slate-900 bg-white px-2.5 py-0.5 rounded border border-slate-200">10:00 AM</span>
+                <button type="button" id="resetNowBtn" class="text-[11px] font-semibold text-sky-700 hover:underline">Reset to Now</button>
+              </div>
+            </div>
+
+            <input
+              id="hourSlider"
+              type="range"
+              min="5"
+              max="20"
+              step="1"
+              value="10"
+              aria-label="Select hour of the day"
+              class="w-full"
+            />
+
+            <!-- 6 Uniformly Spaced 3-Hour Axis Labels (0%, 20%, 40%, 60%, 80%, 100% of 15h span) -->
+            <div class="flex justify-between text-[10px] font-semibold text-slate-500 px-0.5">
+              <span>5 AM</span>
+              <span>8 AM</span>
+              <span>11 AM</span>
+              <span>2 PM</span>
+              <span>5 PM</span>
+              <span>8 PM</span>
+            </div>
+          </div>
+
+          <!-- Hourly Mini Strip (Quick Clickable Pills for Daytime Hours) -->
+          <div class="pt-1 border-t border-slate-200/60">
+            <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Tap any hour for exact breakdown (green dot = now)</div>
+            <div id="hourlyStripContainer" class="grid grid-cols-6 sm:grid-cols-11 gap-1.5">
+              <!-- Populated dynamically by JS for 7 AM - 5 PM -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Time-to-Sunburn Card (Dynamic based on Skin Type + SPF + Surface Reflection) -->
+        <div id="burnRiskBox" class="rounded-2xl p-4 bg-gradient-to-br from-rose-50 via-orange-50 to-amber-50 border border-orange-200/90 space-y-3">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <span class="text-[11px] font-bold uppercase tracking-wider text-rose-700">Estimated Time to Sunburn</span>
+              <h4 class="text-xs text-slate-600 mt-0.5" id="burnSkinSubtitle">For Skin Type II (Fair) • Unprotected vs. SPF</h4>
+            </div>
+            <span id="surfaceBonusBadge" class="hidden px-2 py-0.5 rounded bg-sky-100 text-sky-800 text-[10px] font-bold">+20% UV Reflection</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-white/90 rounded-xl p-3 border border-rose-200/70 shadow-sm">
+              <div class="text-[11px] font-semibold text-slate-500">Bare Skin (No SPF)</div>
+              <div id="unprotectedBurnTime" class="text-2xl font-black text-rose-600 mt-0.5">~32 mins</div>
+              <div id="unprotectedBurnNote" class="text-[11px] text-slate-500 mt-0.5">Until reddening begins</div>
+            </div>
+
+            <div class="bg-white/90 rounded-xl p-3 border border-emerald-200/70 shadow-sm">
+              <div class="text-[11px] font-semibold text-slate-500" id="protectedCardLabel">With SPF 50+</div>
+              <div id="protectedBurnTime" class="text-2xl font-black text-emerald-700 mt-0.5">Reapply at 2h</div>
+              <div id="protectedBurnNote" class="text-[11px] text-slate-500 mt-0.5">Reapply every 2 hours</div>
+            </div>
+          </div>
+
+          <!-- Visual Progress Bar of Burn Urgency -->
+          <div class="space-y-1">
+            <div class="flex justify-between text-[11px] font-medium text-slate-600 gap-2">
+              <span class="shrink-0">Skin Damage Speed</span>
+              <span id="burnUrgencyLabel" class="font-bold text-rose-700 text-right">Moderate — Sun protection required</span>
+            </div>
+            <div class="w-full h-2 rounded-full bg-white/80 overflow-hidden border border-orange-200/60">
+              <div id="burnSpeedBar" class="h-full bg-gradient-to-r from-amber-500 via-orange-500 to-rose-600 transition-all duration-300" style="width: 45%"></div>
+            </div>
+          </div>
+          <p class="text-[10px] leading-snug text-slate-500">
+            Estimates only, from your skin type and the UV at this hour. Sunscreen is assumed to give about 45% of its
+            labelled SPF in real-world use. Surface boosts follow Bureau of Meteorology figures.
+          </p>
+        </div>
+      </section>
+
+      <!-- Right Column (6 cols): Interactive Hourly UV Curve & WHO/ARPANSA Risk Band Reference -->
+      <section class="lg:col-span-6 bg-white rounded-2xl p-5 border border-slate-200/80 uv-card-shadow flex flex-col justify-between space-y-4">
+        <div class="space-y-2">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Full-Day UV Forecast Curve</span>
+              <h3 class="text-lg font-bold text-slate-900">Hourly UV Index &amp; Danger Zones (5:00 AM – 8:00 PM)</h3>
+            </div>
+          </div>
+          <div class="flex flex-wrap items-center justify-between gap-2 text-xs font-medium text-slate-600">
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="inline-flex items-center gap-1.5">
+                <span class="w-3 h-3 rounded-sm bg-orange-500 inline-block"></span>
+                Forecast UV
+              </span>
+              <span class="inline-flex items-center gap-1.5">
+                <span class="w-3.5 h-0.5 border-t-2 border-dashed border-indigo-600 inline-block"></span>
+                Clear-Sky Ceiling
+              </span>
+              <span class="inline-flex items-center gap-1.5">
+                <span class="w-3 h-0.5 bg-rose-500 inline-block"></span>
+                UV 3 Threshold
+              </span>
+            </div>
+            <!-- Live Inline Readout Pill (Replaces bulky chart-obscuring tooltip on mobile) -->
+            <span id="chartSelectedReadoutPill" class="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-800 border border-slate-200">
+              10a: UV 4.7 (Clear 4.7)
+            </span>
+          </div>
+        </div>
+
+        <!-- Chart Container (Fixed Height per Responsive Rule) -->
+        <div class="relative h-80 w-full my-auto">
+          <canvas id="uvHourlyChart"></canvas>
+        </div>
+
+        <!-- ARPANSA / WHO UV Risk Scale Reference Guide -->
+        <div class="bg-slate-50 rounded-xl p-3.5 border border-slate-200/70 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">ARPANSA / WHO UV Index Risk Scale</span>
+            <span class="text-[11px] text-slate-500">Tap any point on curve to inspect</span>
+          </div>
+          <div class="grid grid-cols-5 gap-1.5 text-center">
+            <div class="p-2 rounded-lg bg-emerald-50 border border-emerald-200">
+              <div class="text-xs font-black text-emerald-800">0–2</div>
+              <div class="text-[10px] font-bold text-emerald-700">Low</div>
+            </div>
+            <div class="p-2 rounded-lg bg-amber-50 border border-amber-200">
+              <div class="text-xs font-black text-amber-900">3–5</div>
+              <div class="text-[10px] font-bold text-amber-800">Moderate</div>
+            </div>
+            <div class="p-2 rounded-lg bg-orange-50 border border-orange-200">
+              <div class="text-xs font-black text-orange-900">6–7</div>
+              <div class="text-[10px] font-bold text-orange-800">High</div>
+            </div>
+            <div class="p-2 rounded-lg bg-rose-50 border border-rose-200">
+              <div class="text-xs font-black text-rose-900">8–10</div>
+              <div class="text-[10px] font-bold text-rose-800">Very High</div>
+            </div>
+            <div class="p-2 rounded-lg bg-purple-50 border border-purple-200">
+              <div class="text-xs font-black text-purple-900">11+</div>
+              <div class="text-[10px] font-bold text-purple-800">Extreme</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Personalise Your Burn Risk: Skin Type (Fitzpatrick I-VI), SPF & Environment -->
+    <section class="bg-white rounded-2xl p-5 border border-slate-200/80 uv-card-shadow space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-3">
+        <div>
+          <span class="text-xs font-bold uppercase tracking-wider text-amber-600">Personalise Exposure Model</span>
+          <h3 class="text-lg font-bold text-slate-900">Your Skin Tone, Sunscreen SPF &amp; Surroundings</h3>
+        </div>
+        <div class="flex items-center gap-2">
+          <p class="text-xs text-slate-500">Choices are saved automatically to your browser.</p>
+          <button
+            type="button"
+            id="resetPrefsBtn"
+            class="text-[11px] font-semibold text-slate-500 hover:text-slate-800 underline"
+          >
+            Reset Defaults
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        <!-- Fitzpatrick Skin Type Selector (7 cols) -->
+        <div class="lg:col-span-7 space-y-2">
+          <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+            1. Select Fitzpatrick Skin Phototype
+          </label>
+          <div id="skinTypeGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <!-- Populated by JS with non-truncated wrapped descriptions -->
+          </div>
+        </div>
+
+        <!-- SPF & Surface Albedo Controls (5 cols) -->
+        <div class="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-4">
+          <div class="space-y-1.5">
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+              2. Sunscreen Protection (SPF)
+            </label>
+            <div class="grid grid-cols-4 gap-1.5" id="spfSelectorGroup">
+              <button type="button" data-spf="1" class="spf-btn py-2 px-2 rounded-xl text-xs font-bold border transition bg-white text-slate-700 border-slate-200 hover:bg-slate-50">None</button>
+              <button type="button" data-spf="15" class="spf-btn py-2 px-2 rounded-xl text-xs font-bold border transition bg-white text-slate-700 border-slate-200 hover:bg-slate-50">SPF 15</button>
+              <button type="button" data-spf="30" class="spf-btn py-2 px-2 rounded-xl text-xs font-bold border transition bg-white text-slate-700 border-slate-200 hover:bg-slate-50">SPF 30</button>
+              <button type="button" data-spf="50" class="spf-btn py-2 px-2 rounded-xl text-xs font-bold border transition bg-slate-900 text-white border-slate-900 shadow-sm">SPF 50+</button>
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+              3. Surrounding Surface Reflection (Albedo)
+            </label>
+            <div class="grid grid-cols-2 gap-1.5" id="surfaceSelectorGroup">
+              <button type="button" data-surface="1.0" data-label="Standard" class="surface-btn py-2 px-2.5 rounded-xl text-xs font-semibold border transition bg-slate-900 text-white border-slate-900">
+                Urban / Grass (1x)
+              </button>
+              <button type="button" data-surface="1.1" data-label="Water (+10% UV)" class="surface-btn py-2 px-2.5 rounded-xl text-xs font-semibold border transition bg-white text-slate-700 border-slate-200 hover:bg-slate-50">
+                Water (+10%)
+              </button>
+              <button type="button" data-surface="1.2" data-label="Dry Sand (+20% UV)" class="surface-btn py-2 px-2.5 rounded-xl text-xs font-semibold border transition bg-white text-slate-700 border-slate-200 hover:bg-slate-50">
+                Dry Sand (+20%)
+              </button>
+              <button type="button" data-surface="1.9" data-label="Fresh Snow (+90% UV)" class="surface-btn py-2 px-2.5 rounded-xl text-xs font-semibold border transition bg-white text-slate-700 border-slate-200 hover:bg-slate-50">
+                Fresh Snow (+90%)
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Bottom Row: 5-Step Sun Protection Action Guide + Reapplication Timer -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+      <!-- 5-Step Slip Slop Slap Seek Slide Guidance (8 cols) -->
+      <section class="lg:col-span-8 bg-white rounded-2xl p-5 border border-slate-200/80 uv-card-shadow space-y-3.5">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Cancer Council / ARPANSA Protocol</span>
+            <h3 class="text-lg font-bold text-slate-900">Recommended Sun Protection Actions at <span id="guidanceHourLabel">10:00 AM</span></h3>
+          </div>
+          <span id="guidanceActiveBadge" class="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900">Protection Active</span>
+        </div>
+
+        <div id="protectionCardsGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <!-- Populated dynamically by JS based on UV level -->
+        </div>
+      </section>
+
+      <!-- Interactive Sunscreen Reapplication Timer (4 cols) -->
+      <section class="lg:col-span-4 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white rounded-2xl p-5 uv-card-shadow flex flex-col justify-between space-y-4">
+        <div class="space-y-1">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-amber-400">2-Hour Reapply Tracker</span>
+            <span id="timerStatusBadge" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-white/10 text-slate-300">Ready</span>
+          </div>
+          <h3 class="text-base font-bold">Sunscreen Reapplication Timer</h3>
+          <p class="text-xs text-slate-300 leading-relaxed">
+            Even SPF 50+ wears off from sweat, rubbing, and UV breakdown. Reapply 7 teaspoons (35mL) full-body every 2 hours.
+          </p>
+        </div>
+
+        <div class="bg-white/5 border border-white/10 rounded-2xl p-4 text-center space-y-2">
+          <div class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Next Reapplication In</div>
+          <div id="reapplyTimerDisplay" class="text-4xl font-mono font-black tracking-tight text-amber-400">02:00:00</div>
+          <div id="reapplyTargetClock" class="text-xs text-slate-300">Start timer when you apply sunscreen</div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            id="startTimerBtn"
+            class="col-span-2 py-2.5 px-3 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs transition shadow-sm"
+          >
+            Start 2h Timer
+          </button>
+          <button
+            type="button"
+            id="resetTimerBtn"
+            class="py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition"
+          >
+            Reset
+          </button>
+        </div>
+        <p class="text-[10px] leading-snug text-slate-400">
+          Your timer is saved on this device. Allow notifications when asked to get a reminder while this tab is in the background.
+        </p>
+      </section>
+    </div>
+
+    <!-- Year-round planner: typical UV by month for this location -->
+    <section id="yearCard" class="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 uv-card-shadow space-y-3">
+      <div>
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Seasonal planner</span>
+        <h3 class="text-lg font-bold text-slate-900">Typical UV through the year</h3>
+        <p class="text-xs text-slate-500" id="yearLocationLabel">&nbsp;</p>
+      </div>
+      <p id="yearInsight" class="text-sm text-slate-700 leading-relaxed">Scroll here to load the yearly pattern for your location.</p>
+      <div class="relative h-56 sm:h-64">
+        <canvas id="yearChart" role="img" aria-label="Chart of typical daily peak UV for each month of the year"></canvas>
+      </div>
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-600">
+        <span class="inline-flex items-center gap-1.5"><span class="inline-block w-3 h-3 rounded-sm bg-amber-500"></span>Typical daily peak (average, cloud included; colour shows UV level)</span>
+        <span class="inline-flex items-center gap-1.5"><span class="inline-block w-4 border-t-2 border-dashed border-indigo-600"></span>Clear-sky ceiling</span>
+        <span class="inline-flex items-center gap-1.5"><span class="inline-block w-4 border-t-2 border-rose-500"></span>UV 3</span>
+        <span class="inline-flex items-center gap-1.5"><span class="inline-block w-3 h-3 rounded-sm border-2 border-slate-900 bg-slate-100"></span>This month</span>
+      </div>
+      <div id="yearStatus" class="hidden text-xs text-slate-600"></div>
+      <p class="text-[11px] leading-snug text-slate-500">
+        Based on Open-Meteo model data averaged over the last three full years. Model values can read a little lower than official figures, so a month only counts as low when its typical peak is clearly under 3 (below 2.7). Bars show the average of each day's highest UV; the percentage of days reaching UV 3 is in the tap or hover details.
+      </p>
+    </section>
+  </main>
+
+  <footer class="max-w-6xl mx-auto px-4 sm:px-6 pt-6 text-[11px] leading-relaxed text-slate-500 space-y-1.5">
+    <p>
+      UV figures and burn times are estimates and a guide only, not medical advice. Real exposure varies with
+      cloud, shade, altitude, skin condition, medications and how sunscreen is applied. For official sun protection
+      times see the Bureau of Meteorology and ARPANSA. People of all skin types can be harmed by UV. See your GP about any new or changing mole or skin spot.
+    </p>
+    <p>
+      Weather data by <a class="underline hover:text-slate-700" href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>
+      (CC BY 4.0), including place search (GeoNames data). Seasonal UV averages use Open-Meteo's historical forecast data. Postcode lookup by Zippopotam.us and reverse geocoding by BigDataCloud. Surface UV boosts from Bureau of Meteorology figures.
+    </p>
+  </footer>
+
+  <script>
+    const STORAGE_KEY = "solguard_uv_user_prefs_v1";
+    const DEFAULT_POSTCODE = "2000";
+    const TIMER_KEY = "solguard_reapply_timer_v1";
+    const BASE_TITLE = document.title;
+    const STALE_MS = 30 * 60 * 1000;
+    // Add ?raw to the page address to see Open-Meteo's UV values without the late-afternoon smoothing below
+    const RAW_MODE = new URLSearchParams(window.location.search).has("raw");
+    // Surface UV boosts follow the Bureau of Meteorology: water +10%, dry sand +20%, fresh snow +90%
+    const SURFACE_LABELS = { "1": "Standard", "1.1": "Water (+10% UV)", "1.2": "Dry Sand (+20% UV)", "1.9": "Fresh Snow (+90% UV)" };
+    const AU_STATE_ABBR = {
+      "New South Wales": "NSW", "Victoria": "VIC", "Queensland": "QLD", "South Australia": "SA",
+      "Western Australia": "WA", "Tasmania": "TAS", "Northern Territory": "NT", "Australian Capital Territory": "ACT"
+    };
+
+    // --- Built-in Postcode Directory (Fast Instant Resolution + Offline Support) ---
+    const POSTCODE_DB = {
+      "2528": { name: "Shellharbour, NSW", lat: -34.5833, lon: 150.8667, state: "NSW" },
+      "2529": { name: "Shell Cove / Flinders, NSW", lat: -34.5950, lon: 150.8680, state: "NSW" },
+      "2527": { name: "Albion Park, NSW", lat: -34.5667, lon: 150.7833, state: "NSW" },
+      "2530": { name: "Dapto, NSW", lat: -34.4967, lon: 150.7933, state: "NSW" },
+      "2500": { name: "Wollongong, NSW", lat: -34.4248, lon: 150.8931, state: "NSW" },
+      "2515": { name: "Thirroul, NSW", lat: -34.3167, lon: 150.9167, state: "NSW" },
+      "2518": { name: "Corrimal, NSW", lat: -34.3733, lon: 150.8975, state: "NSW" },
+      "2533": { name: "Kiama, NSW", lat: -34.6708, lon: 150.8542, state: "NSW" },
+      "2000": { name: "Sydney CBD, NSW", lat: -33.8688, lon: 151.2093, state: "NSW" },
+      "2026": { name: "Bondi Beach, NSW", lat: -33.8915, lon: 151.2767, state: "NSW" },
+      "2095": { name: "Manly, NSW", lat: -33.7969, lon: 151.2840, state: "NSW" },
+      "2150": { name: "Parramatta, NSW", lat: -33.8150, lon: 151.0011, state: "NSW" },
+      "2300": { name: "Newcastle, NSW", lat: -32.9283, lon: 151.7817, state: "NSW" },
+      "2481": { name: "Byron Bay, NSW", lat: -28.6474, lon: 153.6020, state: "NSW" },
+      "2600": { name: "Canberra, ACT", lat: -35.2809, lon: 149.1300, state: "ACT" },
+      "3000": { name: "Melbourne CBD, VIC", lat: -37.8136, lon: 144.9631, state: "VIC" },
+      "3182": { name: "St Kilda, VIC", lat: -37.8676, lon: 144.9809, state: "VIC" },
+      "3220": { name: "Geelong, VIC", lat: -38.1499, lon: 144.3617, state: "VIC" },
+      "4000": { name: "Brisbane CBD, QLD", lat: -27.4705, lon: 153.0260, state: "QLD" },
+      "4217": { name: "Surfers Paradise, QLD", lat: -28.0023, lon: 153.4145, state: "QLD" },
+      "4567": { name: "Noosa Heads, QLD", lat: -26.3955, lon: 153.0910, state: "QLD" },
+      "4870": { name: "Cairns, QLD", lat: -16.9186, lon: 145.7781, state: "QLD" },
+      "5000": { name: "Adelaide CBD, SA", lat: -34.9285, lon: 138.6007, state: "SA" },
+      "6000": { name: "Perth CBD, WA", lat: -31.9505, lon: 115.8605, state: "WA" },
+      "6160": { name: "Fremantle, WA", lat: -32.0569, lon: 115.7439, state: "WA" },
+      "7000": { name: "Hobart, TAS", lat: -42.8821, lon: 147.3272, state: "TAS" },
+      "0800": { name: "Darwin, NT", lat: -12.4634, lon: 130.8456, state: "NT" },
+      "0870": { name: "Alice Springs, NT", lat: -23.6980, lon: 133.8807, state: "NT" }
+    };
+
+    // Fitzpatrick Skin Phototypes (MED in J/m² converted to standard erythema factor)
+    const SKIN_TYPES = [
+      { id: 1, name: "Type I — Very Fair", desc: "Always burns, never tans", color: "#fde7d9", medFactor: 2.0 },
+      { id: 2, name: "Type II — Fair", desc: "Usually burns, tans minimally", color: "#f9d0b4", medFactor: 2.5 },
+      { id: 3, name: "Type III — Medium", desc: "Sometimes mild burn, tans", color: "#e5b28a", medFactor: 3.5 },
+      { id: 4, name: "Type IV — Olive", desc: "Rarely burns, tans easily", color: "#c68b59", medFactor: 4.5 },
+      { id: 5, name: "Type V — Brown", desc: "Very rarely burns, tans darkly", color: "#8d5524", medFactor: 6.5 },
+      { id: 6, name: "Type VI — Deep", desc: "Almost never burns, deeply pigmented", color: "#4b2c14", medFactor: 9.5 }
+    ];
+
+    // Application State (Defaulting to 2000 Sydney)
+    const state = {
+      postcode: DEFAULT_POSTCODE,
+      locationName: "Sydney CBD, NSW",
+      lat: -33.8688,
+      lon: 151.2093,
+      selectedHour: 10,
+      currentLocalHour: 10,
+      skinTypeId: 2,
+      spf: 50,
+      surfaceMultiplier: 1.0,
+      surfaceLabel: "Standard",
+      autoLocate: false,
+      isLiveApi: false,
+      hourlyData: [], // 24 hours: { hour, uv, clearSkyUv, cloud, temp }
+      timerRemainingSec: 7200,
+      timerEndTs: null,
+      utcOffsetSec: null,
+      currentFrac: 10,
+      dataFetchedAt: 0,
+      dataUpdatedAt: 0,
+      dataDate: "",
+      hasSavedLocation: false,
+      placeResults: [],
+      timerInterval: null,
+      timerRunning: false,
+      manualHeaderExpanded: false
+    };
+
+    let uvChartInstance = null;
+    let saveBadgeTimeout = null;
+
+    // Safe localStorage Load & Save
+    function loadPreferencesFromStorage() {
+      try {
+        if (typeof window === "undefined" || !window.localStorage) return false;
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+        if (!raw) return false;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") return false;
+
+        // The location fields only load as a complete, well-formed group, so a corrupted save can't
+        // leave a postcode pointing at the wrong coordinates.
+        const savedLocationOk =
+          typeof parsed.postcode === "string" && /^[A-Za-z0-9 \-]{0,10}$/.test(parsed.postcode) &&
+          typeof parsed.locationName === "string" && parsed.locationName &&
+          typeof parsed.lat === "number" && isFinite(parsed.lat) &&
+          typeof parsed.lon === "number" && isFinite(parsed.lon);
+        if (savedLocationOk) {
+          state.hasSavedLocation = true;
+          state.postcode = parsed.postcode;
+          state.locationName = parsed.locationName;
+          state.lat = parsed.lat;
+          state.lon = parsed.lon;
+        }
+        if (typeof parsed.skinTypeId === "number" && parsed.skinTypeId >= 1 && parsed.skinTypeId <= 6) {
+          state.skinTypeId = parsed.skinTypeId;
+        }
+        if (typeof parsed.spf === "number" && [1, 15, 30, 50].includes(parsed.spf)) {
+          state.spf = parsed.spf;
+        }
+        if (typeof parsed.surfaceMultiplier === "number") {
+          // Migrate values saved by the first version (sand 1.15, water 1.25) to the Bureau of Meteorology figures
+          let sm = parsed.surfaceMultiplier;
+          if (sm === 1.15) sm = 1.2;
+          else if (sm === 1.25) sm = 1.1;
+          if ([1.0, 1.1, 1.2, 1.9].includes(sm)) {
+            state.surfaceMultiplier = sm;
+            state.surfaceLabel = SURFACE_LABELS[String(sm)];
+          }
+        }
+        if (typeof parsed.autoLocate === "boolean") {
+          state.autoLocate = parsed.autoLocate;
+        }
+        return true;
+      } catch (err) {
+        return false;
+      }
+    }
+
+    function savePreferencesToStorage() {
+      try {
+        if (typeof window === "undefined" || !window.localStorage) return;
+        const payload = {
+          postcode: state.postcode,
+          locationName: state.locationName,
+          lat: state.lat,
+          lon: state.lon,
+          skinTypeId: state.skinTypeId,
+          spf: state.spf,
+          surfaceMultiplier: state.surfaceMultiplier,
+          surfaceLabel: state.surfaceLabel,
+          autoLocate: state.autoLocate
+        };
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+        flashSavedBadge();
+      } catch (err) {
+        // Ignore storage errors in restricted environments
+      }
+    }
+
+    function flashSavedBadge() {
+      const badge = document.getElementById("storageSavedBadge");
+      if (!badge) return;
+      badge.classList.remove("hidden");
+      badge.classList.add("inline-flex");
+      if (saveBadgeTimeout) clearTimeout(saveBadgeTimeout);
+      saveBadgeTimeout = setTimeout(() => {
+        badge.classList.add("hidden");
+        badge.classList.remove("inline-flex");
+      }, 1800);
+    }
+
+    function syncControlsWithState() {
+      document.getElementById("postcodeInput").value = locationInputValue();
+      document.getElementById("mobileHeaderPostcodeLabel").textContent = mobileLocationLabel();
+      document.getElementById("autoLocateToggle").checked = Boolean(state.autoLocate);
+
+      document.querySelectorAll(".spf-btn").forEach((b) => {
+        const spfVal = parseInt(b.dataset.spf, 10);
+        b.setAttribute("aria-pressed", String(spfVal === state.spf));
+        b.className = spfVal === state.spf
+          ? "spf-btn py-2 px-2 rounded-xl text-xs font-bold border transition bg-slate-900 text-white border-slate-900 shadow-sm"
+          : "spf-btn py-2 px-2 rounded-xl text-xs font-bold border transition bg-white text-slate-700 border-slate-200 hover:bg-slate-50";
+      });
+
+      document.querySelectorAll(".surface-btn").forEach((b) => {
+        const surfVal = parseFloat(b.dataset.surface);
+        b.setAttribute("aria-pressed", String(Math.abs(surfVal - state.surfaceMultiplier) < 0.01));
+        b.className = Math.abs(surfVal - state.surfaceMultiplier) < 0.01
+          ? "surface-btn py-2 px-2.5 rounded-xl text-xs font-semibold border transition bg-slate-900 text-white border-slate-900"
+          : "surface-btn py-2 px-2.5 rounded-xl text-xs font-semibold border transition bg-white text-slate-700 border-slate-200 hover:bg-slate-50";
+      });
+
+      renderSkinTypeSelector();
+      updatePresetHighlight();
+    }
+
+    // Determine UV Risk Category & Colors
+    function getUvRiskMeta(uv) {
+      const val = Number(uv) || 0;
+      if (val < 3) {
+        return {
+          level: "Low",
+          badgeBg: "bg-emerald-100 text-emerald-800 border-emerald-300",
+          hex: "#10b981",
+          urgency: "Minimal — Safe for outdoor activity without burn risk"
+        };
+      }
+      if (val < 6) {
+        return {
+          level: "Moderate",
+          badgeBg: "bg-amber-100 text-amber-900 border-amber-300",
+          hex: "#f59e0b",
+          urgency: "Moderate — Sun protection required (hat, SPF 30+, sunglasses)"
+        };
+      }
+      if (val < 8) {
+        return {
+          level: "High",
+          badgeBg: "bg-orange-100 text-orange-900 border-orange-300",
+          hex: "#f97316",
+          urgency: "High — Unprotected skin can burn rapidly; seek shade midday"
+        };
+      }
+      if (val < 11) {
+        return {
+          level: "Very High",
+          badgeBg: "bg-rose-100 text-rose-900 border-rose-300",
+          hex: "#ef4444",
+          urgency: "Very High — Fast cellular damage; SPF 50+, shirt, hat & shade essential"
+        };
+      }
+      return {
+        level: "Extreme",
+        badgeBg: "bg-purple-100 text-purple-900 border-purple-300",
+        hex: "#8b5cf6",
+        urgency: "Extreme — Avoid direct midday sun; unprotected skin burns in minutes"
+      };
+    }
+
+    function formatHour12(h) {
+      const hour = ((h % 24) + 24) % 24;
+      if (hour === 0) return "12:00 AM";
+      if (hour === 12) return "12:00 PM";
+      return hour < 12 ? `${hour}:00 AM` : `${hour - 12}:00 PM`;
+    }
+
+    // Format fractional hour (e.g. 9.25 -> "9:15 AM", 16.75 -> "4:45 PM") rounded to nearest 10 mins
+    function formatFractionalHour12(fractionalH) {
+      const clamped = Math.max(0, Math.min(23.9, fractionalH));
+      let totalMins = Math.round((clamped * 60) / 10) * 10;
+      const h24 = Math.floor(totalMins / 60) % 24;
+      const mins = totalMins % 60;
+      const suffix = h24 < 12 ? "AM" : "PM";
+      const h12 = h24 === 0 ? 12 : h24 > 12 ? h24 - 12 : h24;
+      return `${h12}:${String(mins).padStart(2, "0")} ${suffix}`;
+    }
+
+    function formatHourShort(h) {
+      const hour = ((h % 24) + 24) % 24;
+      if (hour === 0) return "12a";
+      if (hour === 12) return "12p";
+      return hour < 12 ? `${hour}a` : `${hour - 12}p`;
+    }
+
+    function inferAusPostcodeRegion(code) {
+      const num = parseInt(code, 10);
+      if (isNaN(num)) return null;
+      if (num >= 800 && num <= 899) return { name: `Northern Territory (${code})`, lat: -14.5, lon: 132.0 };
+      if (num >= 2000 && num <= 2599) return { name: `New South Wales (${code})`, lat: -34.4, lon: 150.9 };
+      if (num >= 2600 && num <= 2618) return { name: `Canberra Region, ACT (${code})`, lat: -35.28, lon: 149.13 };
+      if (num >= 2619 && num <= 2999) return { name: `Regional NSW (${code})`, lat: -32.5, lon: 149.5 };
+      if (num >= 3000 && num <= 3999) return { name: `Victoria (${code})`, lat: -37.8, lon: 145.0 };
+      if (num >= 4000 && num <= 4999) return { name: `Queensland (${code})`, lat: -25.5, lon: 152.5 };
+      if (num >= 5000 && num <= 5799) return { name: `South Australia (${code})`, lat: -34.9, lon: 138.6 };
+      if (num >= 6000 && num <= 6797) return { name: `Western Australia (${code})`, lat: -31.9, lon: 115.9 };
+      if (num >= 7000 && num <= 7799) return { name: `Tasmania (${code})`, lat: -42.8, lon: 147.3 };
+      return null;
+    }
+
+    function findNearestKnownPostcode(lat, lon) {
+      let bestCode = DEFAULT_POSTCODE;
+      let bestDist = Infinity;
+      for (const [code, info] of Object.entries(POSTCODE_DB)) {
+        const dLat = info.lat - lat;
+        const dLon = info.lon - lon;
+        const dist = dLat * dLat + dLon * dLon;
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestCode = code;
+        }
+      }
+      return { code: bestCode, ...POSTCODE_DB[bestCode] };
+    }
+
+    // Clear-sky UV estimate from solar geometry. Used only when the live UV service can't be reached, so it
+    // deliberately assumes NO cloud (the safe direction for a sunburn tool) and reports no temperature or cloud
+    // figures rather than inventing them. The 2.15 exponent gives a realistic steep late-afternoon drop.
+    function generateSolarModelUv(lat, lon) {
+      const now = new Date();
+      const startOfYear = new Date(now.getFullYear(), 0, 0);
+      const dayOfYear = Math.floor((now - startOfYear) / 86400000);
+
+      const decl = 23.45 * Math.sin(((2 * Math.PI) / 365) * (dayOfYear - 81)) * (Math.PI / 180);
+      const latRad = lat * (Math.PI / 180);
+
+      const sinNoonElev = Math.sin(latRad) * Math.sin(decl) + Math.cos(latRad) * Math.cos(decl);
+      const maxClearSkyUv = Math.max(2.2, Math.min(14.5, Math.pow(Math.max(0.1, sinNoonElev), 1.55) * 11.2));
+
+      // Local clock time of solar noon from longitude, this device's UTC offset (so daylight saving is
+      // handled automatically) and the equation of time.
+      const b = (2 * Math.PI * (dayOfYear - 81)) / 365;
+      const equationOfTimeMin = 9.87 * Math.sin(2 * b) - 7.53 * Math.cos(b) - 1.5 * Math.sin(b);
+      const utcOffsetHours = -now.getTimezoneOffset() / 60;
+      const solarNoon = 12 + (utcOffsetHours * 15 - lon) / 15 - equationOfTimeMin / 60;
+
+      const hours = [];
+      for (let h = 0; h < 24; h++) {
+        const hourAngle = ((h - solarNoon) * 15) * (Math.PI / 180);
+        const sinElev = Math.sin(latRad) * Math.sin(decl) + Math.cos(latRad) * Math.cos(decl) * Math.cos(hourAngle);
+
+        let clearUv = 0;
+        if (sinElev > 0.05) {
+          clearUv = maxClearSkyUv * Math.pow(sinElev / Math.max(0.15, sinNoonElev), 2.15);
+        }
+        const uvVal = Math.max(0, +clearUv.toFixed(1));
+        hours.push({ hour: h, uv: uvVal, clearSkyUv: uvVal, cloud: null, temp: null });
+      }
+      return hours;
+    }
+
+    // Correct Open-Meteo's preceding-hour CAMS radiation lag in late afternoon (15:00-18:00) so instantaneous hour readings align with live ARPANSA / weather station observations
+    function calibrateLiveHourlySeries(rawUvArr, rawClearArr, rawCloudArr, rawTempArr) {
+      const result = [];
+      for (let h = 0; h < 24; h++) {
+        let uvVal = Number(rawUvArr[h] ?? 0);
+        let clearVal = Number(rawClearArr?.[h] ?? uvVal);
+
+        // Open-Meteo's hourly UV is a mean over the PRECEDING hour (checked against a clear-sky solar model:
+        // best fit is a 30 min shift). The value labelled h:00 therefore describes about h-0:30, so the
+        // instantaneous UV at h:00 sits about halfway between this hour's value and the next one.
+        if (!RAW_MODE && h >= 6 && h < 20) {
+          const nextUv = Number(rawUvArr[h + 1] ?? uvVal);
+          const nextClear = Number(rawClearArr?.[h + 1] ?? nextUv);
+          const weightNext = 0.5;
+          uvVal = uvVal * (1 - weightNext) + nextUv * weightNext;
+          clearVal = clearVal * (1 - weightNext) + nextClear * weightNext;
+        } else if (h >= 20 || h <= 5) {
+          uvVal = Math.min(uvVal, 0.2);
+          clearVal = Math.min(clearVal, 0.2);
+        }
+
+        const finalUv = Math.max(0, +uvVal.toFixed(1));
+        const finalClear = Math.max(finalUv, +clearVal.toFixed(1));
+        const cloudVal = Math.round(Number(rawCloudArr?.[h] ?? 12));
+        const tempVal = Math.round(Number(rawTempArr?.[h] ?? 21));
+
+        result.push({
+          hour: h,
+          uv: finalUv,
+          clearSkyUv: finalClear,
+          cloud: cloudVal,
+          temp: tempVal
+        });
+      }
+      return result;
+    }
+
+    // Sequence counters: a slow response from an older request must never overwrite a newer one
+    let fetchSeq = 0;
+    let locationSeq = 0;
+
+    function fetchWithTimeout(url, ms = 8000) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), ms);
+      return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timer));
+    }
+
+    // Which hour to show first: the location's current hour in daylight, otherwise the day's peak hour
+    function defaultSelectedHour() {
+      const h = state.currentLocalHour;
+      if (h >= 5 && h <= 20) return h;
+      return Math.min(20, Math.max(5, computeDailySummary().peakHour));
+    }
+
+    function shortPlaceName() {
+      return String(state.locationName || "").split(",")[0].trim();
+    }
+
+    // What the search box shows for the current location: the postcode, or the suburb name if there isn't one
+    function locationInputValue() {
+      return state.postcode || shortPlaceName();
+    }
+
+    function mobileLocationLabel() {
+      const t = state.postcode || shortPlaceName();
+      return t.length > 12 ? t.slice(0, 11) + "…" : t;
+    }
+
+    // Clock at the location being viewed (uses the API's UTC offset so other time zones are right)
+    function locationNow() {
+      if (state.utcOffsetSec !== null) {
+        const d = new Date(Date.now() + state.utcOffsetSec * 1000);
+        return { hour: d.getUTCHours(), frac: d.getUTCHours() + d.getUTCMinutes() / 60, date: d.toISOString().slice(0, 10) };
+      }
+      const d = new Date();
+      return { hour: d.getHours(), frac: d.getHours() + d.getMinutes() / 60, date: "" };
+    }
+
+    function syncClock() {
+      const n = locationNow();
+      state.currentLocalHour = n.hour;
+      state.currentFrac = n.frac;
+    }
+
+    // Runs every 30 seconds and when the tab becomes visible: moves "now" forward, and refreshes the data
+    // when the location's day rolls over or the data has gone stale.
+    function tickClock() {
+      if (!state.hourlyData.length) return;
+      const prevHour = state.currentLocalHour;
+      syncClock();
+      const n = locationNow();
+      const rolledOver = Boolean(n.date && state.dataDate && n.date !== state.dataDate);
+      const sinceAttempt = Date.now() - state.dataFetchedAt;
+      if ((rolledOver || sinceAttempt > STALE_MS) && sinceAttempt > 60000) {
+        state.dataFetchedAt = Date.now(); // marks the attempt, so a failing refresh isn't retried every tick
+        fetchUvDataForCurrentCoords({ keepSelection: !rolledOver });
+      }
+      if (state.currentLocalHour !== prevHour) {
+        if (state.selectedHour === prevHour && state.currentLocalHour >= 5 && state.currentLocalHour <= 20) {
+          state.selectedHour = state.currentLocalHour;
+        }
+        renderAll();
+      } else {
+        renderNowStatus(computeDailySummary());
+      }
+    }
+
+    function formatDuration(hours) {
+      const totalMin = Math.max(1, Math.round(hours * 60));
+      const h = Math.floor(totalMin / 60);
+      const m = totalMin % 60;
+      return h > 0 ? `${h} h ${m} min` : `${m} min`;
+    }
+
+    // One plain-language line about what to do right now
+    function renderNowStatus(summary) {
+      const el = document.getElementById("nowStatusSentence");
+      if (!el) return;
+      if (!state.hourlyData.length) {
+        el.textContent = "";
+        return;
+      }
+      if (summary.startCross === null) {
+        el.textContent = "UV stays below 3 all day, so sun protection isn't needed today.";
+        return;
+      }
+      const now = state.currentFrac;
+      if (now < summary.startCross) {
+        el.textContent = `Sun protection starts in ${formatDuration(summary.startCross - now)} (${summary.startStr}).`;
+      } else if (now <= summary.endCross) {
+        el.textContent = `Sun protection needed for another ${formatDuration(summary.endCross - now)} (until ${summary.endStr}).`;
+      } else {
+        el.textContent = "UV is now below 3, so sun protection isn't needed until tomorrow.";
+      }
+    }
+
+    // Fetch UV from Open-Meteo given state.lat / state.lon
+    // opts.keepSelection: keep the hour the person is looking at (used by background refreshes)
+    async function fetchUvDataForCurrentCoords(opts = {}) {
+      const seq = ++fetchSeq;
+      if (!opts.keepSelection) document.getElementById("dataSourceText").textContent = "Loading UV...";
+
+      let liveSeries = null;
+      let utcOffsetSec = null;
+      let dataDate = "";
+      try {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${state.lat.toFixed(4)}&longitude=${state.lon.toFixed(4)}&hourly=uv_index,uv_index_clear_sky,cloud_cover,temperature_2m&timezone=auto&forecast_days=1`;
+        const res = await fetchWithTimeout(url);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.hourly && Array.isArray(data.hourly.uv_index) && data.hourly.uv_index.length >= 24) {
+            liveSeries = calibrateLiveHourlySeries(
+              data.hourly.uv_index,
+              data.hourly.uv_index_clear_sky,
+              data.hourly.cloud_cover,
+              data.hourly.temperature_2m
+            );
+            if (typeof data.utc_offset_seconds === "number") utcOffsetSec = data.utc_offset_seconds;
+            if (Array.isArray(data.hourly.time) && data.hourly.time[0]) dataDate = String(data.hourly.time[0]).slice(0, 10);
+          }
+        }
+      } catch (e) {
+        liveSeries = null;
+      }
+
+      if (seq !== fetchSeq) return; // a newer request has taken over
+
+      if (liveSeries) {
+        state.hourlyData = liveSeries;
+      } else {
+        if (opts.keepSelection && state.hourlyData.length && state.isLiveApi) {
+          // A background refresh failed: keep showing the live data we already have
+          state.dataFetchedAt = Date.now();
+          return;
+        }
+        state.hourlyData = generateSolarModelUv(state.lat, state.lon);
+        if (!opts.keepSelection) {
+          showToast("Couldn't reach the live UV service, so this is a clear-sky estimate that ignores cloud. Actual UV may be lower.", "amber");
+        }
+      }
+      state.isLiveApi = Boolean(liveSeries);
+      state.utcOffsetSec = utcOffsetSec;
+      const dateChanged = state.dataDate !== dataDate;
+      state.dataDate = dataDate;
+      state.dataFetchedAt = Date.now();
+      state.dataUpdatedAt = Date.now();
+
+      // Use the location's own clock, not the device's, so "Current Hour" is right when viewing another time zone
+      syncClock();
+      if (!opts.keepSelection || dateChanged) state.selectedHour = defaultSelectedHour();
+
+      updateDataSourceBadge();
+      updatePresetHighlight();
+      renderAll();
+      ensureYearChart();
+    }
+
+    // Resolve Postcode -> Lat/Lon & Suburb Name, Save to LocalStorage, then Fetch UV Data
+    async function loadUvForPostcode(rawCode, shouldSave = true, opts = {}) {
+      let code = String(rawCode || "").trim();
+      if (!code) return;
+      if (/^\d{3}$/.test(code)) code = "0" + code; // NT postcodes lose their leading zero (800 -> 0800)
+
+      if (!/^\d{4,5}$/.test(code)) {
+        showToast("Enter a 4-digit Australian postcode, for example 2000.", "amber");
+        document.getElementById("postcodeInput").value = locationInputValue();
+        return;
+      }
+
+      const mySeq = ++locationSeq;
+      hidePlaceResults();
+      let resolved = POSTCODE_DB[code] ? { ...POSTCODE_DB[code] } : null;
+      let approximate = false;
+
+      // Same postcode as the location already loaded (e.g. restored from saved preferences): reuse its coordinates
+      if (!resolved && code === state.postcode && state.locationName) {
+        resolved = { name: state.locationName, lat: state.lat, lon: state.lon };
+      }
+
+      // Look the postcode up online when it isn't built in, or when the person typed it and we may need to offer a choice
+      let zipPlaces = null;
+      const countryTry = code.length === 4 ? "AU" : "US";
+      if (!resolved || opts.offerChoice) {
+        try {
+          const geoRes = await fetchWithTimeout(`https://api.zippopotam.us/${countryTry}/${encodeURIComponent(code)}`, 6000);
+          if (geoRes.ok) {
+            const geoJson = await geoRes.json();
+            const seen = new Set();
+            zipPlaces = (geoJson.places || [])
+              .map((pl) => ({
+                name: String(pl["place name"] || "").trim(),
+                region: pl["state abbreviation"] || countryTry,
+                lat: parseFloat(pl.latitude),
+                lon: parseFloat(pl.longitude)
+              }))
+              .filter((pl) => pl.name && isFinite(pl.lat) && isFinite(pl.lon))
+              .filter((pl) => { const k = pl.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
+              .sort((a, b) => a.name.localeCompare(b.name));
+          }
+        } catch (err) {
+          // Network or CORS restricted; fall through to the built-in data / region estimate below
+        }
+      }
+
+      if (mySeq !== locationSeq) return; // a newer search or GPS fix replaced this one
+
+      // One postcode, several places: let the person pick instead of guessing
+      if (opts.offerChoice && zipPlaces && zipPlaces.length > 1) {
+        hideToast();
+        showPlaceResults(
+          zipPlaces.slice(0, 20).map((pl) => ({
+            name: pl.name,
+            admin1: pl.region,
+            admin2: `Postcode ${code}`,
+            country_code: countryTry === "AU" ? "AU" : "US",
+            postcodes: [code],
+            latitude: pl.lat,
+            longitude: pl.lon
+          })),
+          `Postcode ${code} covers ${zipPlaces.length} places. Which one?`
+        );
+        document.getElementById("postcodeInput").value = code;
+        return;
+      }
+
+      if (!resolved && zipPlaces && zipPlaces.length) {
+        const pl = zipPlaces[0];
+        resolved = {
+          name: `${pl.name}, ${pl.region}`,
+          lat: pl.lat,
+          lon: pl.lon
+        };
+        if (zipPlaces.length > 1) {
+          // A postcode can cover several localities: use the middle of them rather than just the first
+          resolved.lat = zipPlaces.reduce((a, p) => a + p.lat, 0) / zipPlaces.length;
+          resolved.lon = zipPlaces.reduce((a, p) => a + p.lon, 0) / zipPlaces.length;
+        }
+      }
+
+      if (!resolved && code.length === 4) {
+        const inferred = inferAusPostcodeRegion(code);
+        if (inferred) {
+          resolved = inferred;
+          approximate = true;
+        }
+      }
+
+      if (mySeq !== locationSeq) return; // a newer search or GPS fix replaced this one
+
+      if (!resolved) {
+        // Leave the current location untouched rather than showing (and saving) another place's UV under this postcode
+        showToast(`Couldn't find postcode "${code}". Check it and try again.`, "amber");
+        document.getElementById("postcodeInput").value = locationInputValue();
+        return;
+      }
+
+      state.postcode = code;
+      state.locationName = resolved.name;
+      state.lat = resolved.lat;
+      state.lon = resolved.lon;
+
+      document.getElementById("postcodeInput").value = code;
+      document.getElementById("mobileHeaderPostcodeLabel").textContent = code;
+      if (shouldSave) {
+        savePreferencesToStorage();
+      }
+
+      if (approximate) {
+        showToast(`Couldn't look up an exact spot for ${code}, so UV is shown for the middle of its region. Use "Get Location" for a precise reading.`, "amber");
+      }
+
+      await fetchUvDataForCurrentCoords();
+    }
+
+    // ---- Suburb / town search (Open-Meteo geocoding, GeoNames data) ----
+    function hidePlaceResults() {
+      const card = document.getElementById("placeResultsCard");
+      if (card) card.classList.add("hidden");
+      state.placeResults = [];
+    }
+
+    function describePlace(r) {
+      const isAu = r.country_code === "AU";
+      const region = isAu ? (AU_STATE_ABBR[r.admin1] || r.admin1 || "") : (r.admin1 || r.country || "");
+      const suffix = r.country_code && !isAu ? ` (${r.country_code})` : "";
+      return {
+        title: [r.name, region].filter(Boolean).join(", ") + suffix,
+        detail: [r.admin2, isAu ? "" : r.country].filter(Boolean).join(", ")
+      };
+    }
+
+    function showPlaceResults(list, heading) {
+      state.placeResults = list;
+      document.getElementById("placeResultsTitle").textContent = heading || "Which place did you mean?";
+      const box = document.getElementById("placeResultsList");
+      box.innerHTML = "";
+      list.forEach((r, i) => {
+        const d = describePlace(r);
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.dataset.idx = String(i);
+        btn.className = "text-left px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-amber-50 hover:border-amber-300 transition";
+        const title = document.createElement("div");
+        title.className = "text-sm font-bold text-slate-900";
+        title.textContent = d.title;
+        const detail = document.createElement("div");
+        detail.className = "text-[11px] text-slate-500";
+        detail.textContent = d.detail || " ";
+        btn.append(title, detail);
+        box.appendChild(btn);
+      });
+      document.getElementById("placeResultsCard").classList.remove("hidden");
+    }
+
+    async function selectPlace(r) {
+      ++locationSeq; // cancels any search still in flight
+      const d = describePlace(r);
+      const pc = Array.isArray(r.postcodes) && r.postcodes[0] && /^\d{4,5}$/.test(String(r.postcodes[0])) ? String(r.postcodes[0]) : "";
+      state.postcode = pc;
+      state.locationName = d.title;
+      state.lat = r.latitude;
+      state.lon = r.longitude;
+      hidePlaceResults();
+      hideToast();
+      document.getElementById("postcodeInput").value = locationInputValue();
+      document.getElementById("mobileHeaderPostcodeLabel").textContent = mobileLocationLabel();
+      savePreferencesToStorage();
+      await fetchUvDataForCurrentCoords();
+    }
+
+    async function searchPlacesByName(query) {
+      const q = query.trim();
+      if (q.length < 2) {
+        showToast("Type at least 2 letters of a suburb or town name, or a 4-digit postcode.", "amber");
+        return;
+      }
+      const mySeq = ++locationSeq;
+      showToast(`Searching for "${q}"...`, "sky");
+      const base = `https://geocoding-api.open-meteo.com/v1/search?count=10&language=en&format=json&name=${encodeURIComponent(q)}`;
+      let results = [];
+      let failed = false;
+      try {
+        // Australia first, then worldwide if nothing matches
+        for (const extra of ["&countryCode=AU", ""]) {
+          const res = await fetchWithTimeout(base + extra, 8000);
+          if (!res.ok) { failed = true; break; }
+          const json = await res.json();
+          results = Array.isArray(json.results) ? json.results : [];
+          if (results.length) break;
+        }
+      } catch (e) {
+        failed = true;
+      }
+
+      if (mySeq !== locationSeq) return; // a newer search or selection replaced this one
+      hideToast();
+
+      if (failed && !results.length) {
+        showToast("Couldn't reach the place search. Check your connection, or enter a postcode.", "amber");
+        return;
+      }
+      // Prefer towns, suburbs and regions over parks, buildings and the like
+      const places = results.filter((r) => /^(PPL|ADM|PCL)/.test(String(r.feature_code || "")));
+      const usable = (places.length ? places : results)
+        .filter((r) => isFinite(r.latitude) && isFinite(r.longitude))
+        .slice(0, 6);
+      if (!usable.length) {
+        showToast(`Couldn't find "${q}". Try a nearby suburb or a postcode.`, "amber");
+        return;
+      }
+      const exact = usable.filter((r) => String(r.name).toLowerCase() === q.toLowerCase());
+      if (usable.length === 1 || exact.length === 1) {
+        await selectPlace(exact.length === 1 ? exact[0] : usable[0]);
+        return;
+      }
+      showPlaceResults(usable);
+    }
+
+    // Geolocation ("Get Location") Handler + Reverse Geocoding
+    function requestDeviceLocation(isSilentStartup = false) {
+      const btnText = document.getElementById("getLocationBtnText");
+      if (!navigator.geolocation) {
+        if (!isSilentStartup) {
+          showToast("Geolocation is not supported by your browser. Using saved postcode instead.", "amber");
+        }
+        return;
+      }
+
+      btnText.textContent = "Locating...";
+
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const mySeq = ++locationSeq;
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+
+          let foundPostcode = "";
+          let foundName = "";
+          try {
+            const revRes = await fetchWithTimeout(
+              `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&localityLanguage=en`,
+              6000
+            );
+            if (revRes.ok) {
+              const revData = await revRes.json();
+              foundPostcode = revData.postcode || "";
+              const locality = revData.locality || revData.city || "";
+              const stateCode = revData.principalSubdivisionCode ? revData.principalSubdivisionCode.replace("AU-", "") : "";
+              if (locality) {
+                foundName = stateCode ? `${locality}, ${stateCode}` : locality;
+              }
+            }
+          } catch (e) {
+            // Fallback to nearest known postcode
+          }
+
+          btnText.textContent = "Get Location";
+          if (mySeq !== locationSeq) return; // the person picked something else while this was resolving
+          hidePlaceResults();
+
+          if (!foundPostcode || !foundName) {
+            const nearest = findNearestKnownPostcode(lat, lon);
+            // Only borrow a known postcode when it is actually close (this also works outside Australia)
+            const farAway = Math.hypot(nearest.lat - lat, nearest.lon - lon) > 1.5;
+            if (!foundName) foundName = farAway ? `Your location (${lat.toFixed(2)}, ${lon.toFixed(2)})` : `${nearest.name} (GPS)`;
+            if (!foundPostcode) foundPostcode = farAway ? "" : nearest.code;
+          }
+          if (!/^[A-Za-z0-9 \-]{1,10}$/.test(foundPostcode)) foundPostcode = "";
+
+          state.lat = lat;
+          state.lon = lon;
+          state.postcode = foundPostcode;
+          state.locationName = foundName;
+          document.getElementById("postcodeInput").value = locationInputValue();
+          document.getElementById("mobileHeaderPostcodeLabel").textContent = mobileLocationLabel();
+
+          savePreferencesToStorage();
+          showToast(`Location updated via GPS: ${state.locationName}${state.postcode ? ` (${state.postcode})` : ""}.`, "sky");
+          await fetchUvDataForCurrentCoords();
+        },
+        (err) => {
+          btnText.textContent = "Get Location";
+          if (isSilentStartup) return;
+          const reasons = {
+            1: "Location access was denied. Allow location for this site in your browser settings, or enter a postcode. Some embedded previews block location entirely.",
+            2: "Your device couldn't work out its position. Try again, or enter a postcode.",
+            3: "Finding your location took too long. Try again, or enter a postcode."
+          };
+          showToast(reasons[err && err.code] || "Location is unavailable right now. Enter a postcode instead.", "amber");
+        },
+        { enableHighAccuracy: false, timeout: 7000, maximumAge: 300000 }
+      );
+    }
+
+    function updateDataSourceBadge() {
+      const badge = document.getElementById("dataSourceBadge");
+      const text = document.getElementById("dataSourceText");
+      if (state.isLiveApi) {
+        badge.className = "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200";
+        text.textContent = RAW_MODE ? "Live Open-Meteo UV (raw)" : "Live Open-Meteo UV";
+      } else {
+        badge.className = "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200";
+        text.textContent = "Clear-Sky Estimate (offline)";
+      }
+    }
+
+    function hideToast() {
+      document.getElementById("statusToast").classList.add("hidden");
+    }
+
+    function showToast(msg, tone) {
+      const toast = document.getElementById("statusToast");
+      const text = document.getElementById("statusToastMsg");
+      text.textContent = msg;
+      toast.className = tone === "amber"
+        ? "rounded-xl px-4 py-2.5 text-xs font-medium flex items-center justify-between border bg-amber-50 text-amber-900 border-amber-200"
+        : "rounded-xl px-4 py-2.5 text-xs font-medium flex items-center justify-between border bg-sky-50 text-sky-900 border-sky-200";
+    }
+
+    // Calculate Daily Protection Window (UV >= 3.0) using exact linear threshold interpolation (instead of adding +1h to discrete buckets)
+    function computeDailySummary() {
+      let peakHour = 12;
+      let peakUv = 0;
+      const dangerHours = [];
+
+      state.hourlyData.forEach((d) => {
+        if (d.uv > peakUv) {
+          peakUv = d.uv;
+          peakHour = d.hour;
+        }
+        if (d.uv >= 3.0) {
+          dangerHours.push(d.hour);
+        }
+      });
+
+      let protectionWindowStr = "No UV ≥ 3 Today";
+      let safeWindowStr = "Low burn risk all day";
+      let durationHoursStr = "0";
+      let startStr = null;
+      let endStr = null;
+      let startCrossVal = null;
+      let endCrossVal = null;
+
+      if (dangerHours.length > 0) {
+        const firstH = dangerHours[0];
+        const lastH = dangerHours[dangerHours.length - 1];
+
+        // Linearly interpolate exact morning crossing where UV rises through 3.0
+        let startCross = firstH;
+        if (firstH > 0) {
+          const prevUv = state.hourlyData[firstH - 1].uv;
+          const currUv = state.hourlyData[firstH].uv;
+          if (currUv > prevUv && prevUv < 3.0) {
+            startCross = (firstH - 1) + (3.0 - prevUv) / (currUv - prevUv);
+          }
+        }
+
+        // Linearly interpolate exact afternoon crossing where UV drops below 3.0
+        let endCross = lastH + 0.5;
+        if (lastH < 23) {
+          const currUv = state.hourlyData[lastH].uv;
+          const nextUv = state.hourlyData[lastH + 1].uv;
+          if (currUv > nextUv && nextUv < 3.0) {
+            endCross = lastH + (currUv - 3.0) / (currUv - nextUv);
+          }
+        }
+
+        const startFormatted = formatFractionalHour12(startCross);
+        const endFormatted = formatFractionalHour12(endCross);
+        startStr = startFormatted;
+        endStr = endFormatted;
+        startCrossVal = startCross;
+        endCrossVal = endCross;
+        protectionWindowStr = `${startFormatted} – ${endFormatted}`;
+        safeWindowStr = `Before ${startFormatted} & After ${endFormatted}`;
+        durationHoursStr = Math.max(0.5, +(endCross - startCross).toFixed(1)).toString();
+      }
+
+      return {
+        peakUv,
+        peakHour,
+        protectionWindowStr,
+        safeWindowStr,
+        dangerCount: dangerHours.length,
+        durationHoursStr,
+        startStr,
+        endStr,
+        startCross: startCrossVal,
+        endCross: endCrossVal
+      };
+    }
+
+    // Calculate Time to First Sunburn (Minutes) for Selected Hour
+    function computeBurnTimes(uvRaw) {
+      const effectiveUv = uvRaw * state.surfaceMultiplier;
+      const skin = SKIN_TYPES.find((s) => s.id === state.skinTypeId) || SKIN_TYPES[1];
+
+      if (effectiveUv < 0.8) {
+        return {
+          effectiveUv,
+          unprotectedMins: null,
+          protectedMins: null
+        };
+      }
+
+      const rawUnprotected = Math.round((60 * skin.medFactor) / effectiveUv);
+      const unprotectedMins = Math.max(4, Math.min(360, rawUnprotected));
+
+      const realWorldSpfFactor = state.spf === 1 ? 1 : Math.max(1, state.spf * 0.45);
+      // Sunscreen has to be reapplied every 2 hours regardless, so never promise more than 120 minutes
+      const protectedMins = Math.min(120, Math.round(unprotectedMins * realWorldSpfFactor));
+
+      return {
+        effectiveUv,
+        unprotectedMins,
+        protectedMins
+      };
+    }
+
+    // Render Everything in Sync
+    function renderAll() {
+      // 1. Location Header & Daily Summary
+      const pill = document.getElementById("locationPostcodePill");
+      pill.textContent = state.postcode;
+      pill.classList.toggle("hidden", !state.postcode);
+      document.getElementById("mobileHeaderPostcodeLabel").textContent = mobileLocationLabel();
+      document.getElementById("locationNameDisplay").textContent = state.locationName;
+      document.getElementById("coordsDisplay").textContent = `(${state.lat.toFixed(2)}°, ${state.lon.toFixed(2)}°)`;
+      const updatedEl = document.getElementById("updatedDisplay");
+      if (updatedEl) {
+        updatedEl.textContent = state.dataUpdatedAt
+          ? `Updated ${new Date(state.dataUpdatedAt).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" })}`
+          : "";
+      }
+
+      const summary = computeDailySummary();
+      const peakMeta = getUvRiskMeta(summary.peakUv);
+      renderNowStatus(summary);
+      document.getElementById("protectionWindowDisplay").textContent = summary.protectionWindowStr;
+      document.getElementById("peakUvDisplay").textContent = `UV ${summary.peakUv.toFixed(1)} (${peakMeta.level}) at ${formatHour12(summary.peakHour)}`;
+      document.getElementById("safeWindowDisplay").textContent = summary.safeWindowStr;
+
+      if (summary.dangerCount > 0) {
+        document.getElementById("dailySummarySentence").innerHTML =
+          `Sun protection is required for <strong>~${summary.durationHoursStr} hours</strong> today (${summary.protectionWindowStr}), peaking at <strong>UV ${summary.peakUv.toFixed(1)}</strong> around ${formatHour12(summary.peakHour)}.`;
+      } else {
+        document.getElementById("dailySummarySentence").textContent =
+          "UV levels remain below the 3.0 protection threshold all day today.";
+      }
+
+      // 2. Selected Hour Snapshot & SVG Gauge
+      const hData = state.hourlyData[state.selectedHour] || { hour: state.selectedHour, uv: 0, clearSkyUv: 0, cloud: 0, temp: 20 };
+      const effectiveUv = +(hData.uv * state.surfaceMultiplier).toFixed(1);
+      const effectiveClearUv = +(hData.clearSkyUv * state.surfaceMultiplier).toFixed(1);
+      const riskMeta = getUvRiskMeta(effectiveUv);
+
+      const timeStr = formatHour12(state.selectedHour);
+      document.getElementById("selectedHourTitle").textContent = timeStr;
+      document.getElementById("sliderTimeReadout").textContent = timeStr;
+      document.getElementById("guidanceHourLabel").textContent = timeStr;
+      document.getElementById("hourSlider").value = String(state.selectedHour);
+
+      // Update compact chart pill
+      document.getElementById("chartSelectedReadoutPill").textContent =
+        `${formatHourShort(state.selectedHour)}: UV ${effectiveUv.toFixed(1)} (Clear-Sky ${effectiveClearUv.toFixed(1)})`;
+
+      const nowTag = document.getElementById("selectedHourNowTag");
+      if (state.selectedHour === state.currentLocalHour) {
+        nowTag.textContent = "Current Hour";
+        nowTag.className = "px-2 py-0.5 text-[11px] font-semibold rounded-md bg-emerald-100 text-emerald-800";
+      } else if (state.selectedHour === summary.peakHour) {
+        nowTag.textContent = "Daily Peak";
+        nowTag.className = "px-2 py-0.5 text-[11px] font-semibold rounded-md bg-rose-100 text-rose-800";
+      } else {
+        nowTag.textContent = "Selected Forecast";
+        nowTag.className = "px-2 py-0.5 text-[11px] font-semibold rounded-md bg-slate-100 text-slate-600";
+      }
+
+      // Gauge arc (251.3 max length for 0..14 UV scale)
+      const clampedUv = Math.min(14, Math.max(0, effectiveUv));
+      const dashOffset = 251.3 - (clampedUv / 14) * 251.3;
+      document.getElementById("uvGaugeArc").style.strokeDashoffset = String(dashOffset.toFixed(1));
+
+      document.getElementById("uvIndexBigNumber").textContent = effectiveUv.toFixed(1);
+      const catPill = document.getElementById("uvCategoryPill");
+      catPill.textContent = `${riskMeta.level} Risk`;
+      catPill.className = `inline-flex items-center px-3 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider border ${riskMeta.badgeBg}`;
+
+      document.getElementById("clearSkyUvVal").textContent = effectiveClearUv.toFixed(1);
+      document.getElementById("cloudCoverVal").textContent = hData.cloud == null ? "n/a" : `${hData.cloud}%`;
+      document.getElementById("tempVal").textContent = hData.temp == null ? "n/a" : `${hData.temp}°C`;
+
+      // 3. Burn Time Calculation Box
+      const skin = SKIN_TYPES.find((s) => s.id === state.skinTypeId) || SKIN_TYPES[1];
+      const spfText = state.spf === 1 ? "No Sunscreen" : `SPF ${state.spf}${state.spf === 50 ? "+" : ""}`;
+      document.getElementById("burnSkinSubtitle").textContent = `For ${skin.name} • ${spfText}`;
+
+      const surfaceBadge = document.getElementById("surfaceBonusBadge");
+      if (state.surfaceMultiplier > 1.0) {
+        surfaceBadge.classList.remove("hidden");
+        surfaceBadge.textContent = state.surfaceLabel;
+      } else {
+        surfaceBadge.classList.add("hidden");
+      }
+
+      const burnInfo = computeBurnTimes(hData.uv);
+      const unprotEl = document.getElementById("unprotectedBurnTime");
+      const unprotNote = document.getElementById("unprotectedBurnNote");
+      const protLabel = document.getElementById("protectedCardLabel");
+      const protEl = document.getElementById("protectedBurnTime");
+      const protNote = document.getElementById("protectedBurnNote");
+      const speedBar = document.getElementById("burnSpeedBar");
+      const urgencyLabel = document.getElementById("burnUrgencyLabel");
+
+      protLabel.textContent = state.spf === 1 ? "Without SPF" : `With ${spfText}`;
+
+      if (!burnInfo.unprotectedMins || effectiveUv < 1.0) {
+        unprotEl.textContent = "No Burn Risk";
+        unprotEl.className = "text-xl font-black text-emerald-700 mt-0.5";
+        unprotNote.textContent = "UV too low to cause sunburn";
+        protEl.textContent = "Safe Outdoors";
+        protEl.className = "text-xl font-black text-emerald-700 mt-0.5";
+        protNote.textContent = "No sunscreen needed at this hour";
+        speedBar.style.width = "8%";
+        urgencyLabel.textContent = riskMeta.urgency;
+        urgencyLabel.className = "font-bold text-emerald-700 text-right";
+      } else {
+        unprotEl.textContent = burnInfo.unprotectedMins >= 120
+          ? `~${(burnInfo.unprotectedMins / 60).toFixed(1)} hrs`
+          : `~${burnInfo.unprotectedMins} mins`;
+        unprotEl.className = burnInfo.unprotectedMins <= 25
+          ? "text-2xl font-black text-rose-600 mt-0.5"
+          : "text-2xl font-black text-amber-600 mt-0.5";
+        unprotNote.textContent = "Until perceptible erythema (redness)";
+
+        if (state.spf === 1) {
+          protEl.textContent = `~${burnInfo.unprotectedMins} mins`;
+          protEl.className = "text-2xl font-black text-rose-600 mt-0.5";
+          protNote.textContent = "Select SPF 30 or 50+ below to compare";
+        } else {
+          const fullWindow = burnInfo.protectedMins >= 120;
+          protEl.textContent = fullWindow ? "Reapply at 2h" : `~${burnInfo.protectedMins} mins`;
+          protEl.className = fullWindow
+            ? "text-2xl font-black text-emerald-700 mt-0.5"
+            : "text-2xl font-black text-amber-600 mt-0.5";
+          protNote.textContent = fullWindow
+            ? "Reapply every 2 hours, and after swimming or sweating"
+            : "Short window at this UV and skin type. Reapply early and seek shade";
+        }
+
+        const speedPct = Math.min(100, Math.max(15, Math.round((effectiveUv / 12) * 100)));
+        speedBar.style.width = `${speedPct}%`;
+        urgencyLabel.textContent = riskMeta.urgency;
+        urgencyLabel.className = effectiveUv >= 6 ? "font-bold text-rose-700 text-right" : "font-bold text-amber-800 text-right";
+      }
+
+      // 4. Render Hourly Mini Strip (7 AM to 5 PM)
+      renderHourlyStrip();
+      updateSliderTrack();
+
+      // 5. Render 5-Step Protection Guidance
+      renderProtectionCards(effectiveUv, summary);
+
+      // 6. Render Chart (last, so a chart-library failure can never block the rest of the page)
+      renderChart();
+    }
+
+    // Colour the time slider track from the day's actual UV, so the colours mean something at each time of day
+    function updateSliderTrack() {
+      const slider = document.getElementById("hourSlider");
+      if (!slider || !state.hourlyData.length) return;
+      const stops = [];
+      for (let h = 5; h <= 20; h++) {
+        const d = state.hourlyData[h] || { uv: 0 };
+        const pct = (((h - 5) / 15) * 100).toFixed(1);
+        stops.push(`${getUvRiskMeta(d.uv * state.surfaceMultiplier).hex} ${pct}%`);
+      }
+      slider.style.setProperty("--slider-track", `linear-gradient(90deg, ${stops.join(", ")})`);
+    }
+
+    function renderHourlyStrip() {
+      const container = document.getElementById("hourlyStripContainer");
+      container.innerHTML = "";
+      for (let h = 7; h <= 17; h++) {
+        const item = state.hourlyData[h] || { hour: h, uv: 0 };
+        const effUv = +(item.uv * state.surfaceMultiplier).toFixed(1);
+        const meta = getUvRiskMeta(effUv);
+        const isSelected = h === state.selectedHour;
+
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `flex flex-col items-center justify-center py-2 px-1 rounded-xl border text-center transition ${
+          isSelected
+            ? "bg-slate-900 text-white border-slate-900 shadow-sm scale-[1.03]"
+            : "bg-white hover:bg-slate-100 text-slate-700 border-slate-200/80"
+        }`;
+        const isNow = h === state.currentLocalHour;
+        btn.setAttribute("aria-pressed", String(isSelected));
+        btn.setAttribute("aria-label", `${formatHour12(h)}, UV ${effUv.toFixed(1)}${isNow ? ", current hour" : ""}`);
+        btn.innerHTML = `
+          <span class="text-[10px] font-semibold ${isSelected ? "text-slate-300" : "text-slate-500"}">${formatHourShort(h)}</span>
+          <span class="text-xs font-extrabold mt-0.5" style="color: ${isSelected ? "#ffffff" : meta.hex}">${effUv.toFixed(1)}</span>
+          <span class="mt-0.5 w-1.5 h-1.5 rounded-full ${isNow ? "bg-emerald-500" : "bg-transparent"}"></span>
+        `;
+        btn.addEventListener("click", () => {
+          state.selectedHour = h;
+          renderAll();
+        });
+        container.appendChild(btn);
+      }
+    }
+
+    function renderChart() {
+      const canvasEl = document.getElementById("uvHourlyChart");
+      if (!canvasEl) return;
+      if (typeof Chart === "undefined") {
+        // Chart.js didn't load (offline or blocked CDN): keep the rest of the page working
+        canvasEl.parentElement.innerHTML =
+          '<p class="text-sm text-slate-500 text-center pt-24">The chart library could not be loaded. Check your connection and refresh the page.</p>';
+        return;
+      }
+      const sliceHours = state.hourlyData.slice(5, 21); // 5 AM to 8 PM
+      const labels = sliceHours.map((d) => formatHourShort(d.hour));
+      const actualUvSeries = sliceHours.map((d) => +(d.uv * state.surfaceMultiplier).toFixed(1));
+      const clearSkySeries = sliceHours.map((d) => +(d.clearSkyUv * state.surfaceMultiplier).toFixed(1));
+      const thresholdSeries = sliceHours.map(() => 3.0);
+
+      const pointRadii = sliceHours.map((d) => (d.hour === state.selectedHour ? 7 : 3));
+      const pointColors = sliceHours.map((d) => getUvRiskMeta(d.uv * state.surfaceMultiplier).hex);
+
+      const ctx = document.getElementById("uvHourlyChart").getContext("2d");
+
+      if (uvChartInstance) {
+        uvChartInstance.data.labels = labels;
+        uvChartInstance.data.datasets[0].data = actualUvSeries;
+        uvChartInstance.data.datasets[0].pointRadius = pointRadii;
+        uvChartInstance.data.datasets[0].pointBackgroundColor = pointColors;
+        uvChartInstance.data.datasets[1].data = clearSkySeries;
+        uvChartInstance.data.datasets[2].data = thresholdSeries;
+        uvChartInstance.update();
+        return;
+      }
+
+      const grad = ctx.createLinearGradient(0, 0, 0, 280);
+      grad.addColorStop(0, "rgba(239, 68, 68, 0.36)");
+      grad.addColorStop(0.5, "rgba(249, 115, 22, 0.20)");
+      grad.addColorStop(1, "rgba(16, 185, 129, 0.04)");
+
+      uvChartInstance = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            {
+              label: "Forecast UV",
+              data: actualUvSeries,
+              borderColor: "#f97316",
+              backgroundColor: grad,
+              borderWidth: 2.8,
+              fill: true,
+              tension: 0.38,
+              pointRadius: pointRadii,
+              pointHoverRadius: 7,
+              pointBackgroundColor: pointColors,
+              pointBorderColor: "#ffffff",
+              pointBorderWidth: 2,
+              order: 2
+            },
+            {
+              // Drawn on top (order: 1) with high-contrast indigo dashes so it remains visible even when Cloud Cover is low and Clear-Sky equals Forecast UV
+              label: "Clear-Sky Ceiling",
+              data: clearSkySeries,
+              borderColor: "#4f46e5",
+              borderDash: [4, 4],
+              borderWidth: 2,
+              fill: false,
+              tension: 0.38,
+              pointRadius: 0,
+              order: 1
+            },
+            {
+              label: "UV 3 Threshold",
+              data: thresholdSeries,
+              borderColor: "rgba(225, 29, 72, 0.65)",
+              borderWidth: 1.5,
+              fill: false,
+              pointRadius: 0,
+              order: 3
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: "index",
+            intersect: false
+          },
+          onClick: (evt, elements) => {
+            if (elements && elements.length > 0) {
+              const idx = elements[0].index;
+              state.selectedHour = 5 + idx;
+              renderAll();
+            }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              // Compact single-line tooltip so it never covers the curve on narrow mobile screens
+              backgroundColor: "rgba(15, 23, 42, 0.88)",
+              padding: 7,
+              displayColors: false,
+              yAlign: "bottom",
+              titleFont: { family: "Inter", size: 11, weight: "bold" },
+              bodyFont: { family: "Inter", size: 11 },
+              filter: (item) => item.datasetIndex !== 2,
+              callbacks: {
+                title: (items) => (items[0] ? `Hour: ${items[0].label}` : ""),
+                label: (ctxItem) => `${ctxItem.dataset.label}: ${ctxItem.parsed.y}`
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              suggestedMax: 12,
+              grid: { color: "rgba(226, 232, 240, 0.7)" },
+              ticks: { font: { family: "Inter", size: 11 }, stepSize: 2 }
+            },
+            x: {
+              grid: { display: false },
+              ticks: { font: { family: "Inter", size: 11 } }
+            }
+          }
+        }
+      });
+    }
+
+    // Fitzpatrick Skin Phototype Cards (Full multi-line wrapped descriptions so mobile never truncates with "...")
+    function renderSkinTypeSelector() {
+      const grid = document.getElementById("skinTypeGrid");
+      grid.innerHTML = "";
+      SKIN_TYPES.forEach((st) => {
+        const active = st.id === state.skinTypeId;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.setAttribute("aria-pressed", String(active));
+        btn.className = `flex items-start gap-2.5 p-2.5 rounded-xl border text-left transition ${
+          active
+            ? "bg-slate-900 text-white border-slate-900 shadow-sm"
+            : "bg-slate-50/70 hover:bg-slate-100 text-slate-800 border-slate-200"
+        }`;
+        btn.innerHTML = `
+          <span class="w-6 h-6 rounded-full shrink-0 border border-black/15 shadow-inner mt-0.5" style="background-color: ${st.color}"></span>
+          <div class="min-w-0">
+            <div class="text-xs font-bold leading-tight">${st.name}</div>
+            <div class="text-[11px] leading-snug mt-0.5 ${active ? "text-slate-300" : "text-slate-500"}">${st.desc}</div>
+          </div>
+        `;
+        btn.addEventListener("click", () => {
+          state.skinTypeId = st.id;
+          savePreferencesToStorage();
+          renderSkinTypeSelector();
+          renderAll();
+        });
+        grid.appendChild(btn);
+      });
+    }
+
+    // 5-Step Protection Cards (Aligned 3-tier logic: Low < 3, Moderate 3–5.9, High+ >= 6 so Moderate UV never shows Low-UV copy)
+    function renderProtectionCards(uv, summary) {
+      // Times come from today's real protection window, not fixed clock times
+      const lowUvAdvice = summary && summary.startStr
+        ? ` and schedule long unshaded activities before ${summary.startStr} or after ${summary.endStr}`
+        : "";
+      const badge = document.getElementById("guidanceActiveBadge");
+      const grid = document.getElementById("protectionCardsGrid");
+
+      if (uv < 3.0) {
+        badge.textContent = "Low UV (< 3) — No Protection Needed";
+        badge.className = "px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800";
+      } else if (uv < 6.0) {
+        badge.textContent = "Moderate UV (3–5) — 5-Step Protection Active";
+        badge.className = "px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900";
+      } else if (uv < 8.0) {
+        badge.textContent = "High UV (6–7) — Full Sun Defence Required";
+        badge.className = "px-2.5 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-900";
+      } else {
+        badge.textContent = "Very High / Extreme UV — Maximum Defence";
+        badge.className = "px-2.5 py-1 rounded-full text-xs font-bold bg-rose-100 text-rose-900";
+      }
+
+      // Consistent 3-band copy across all 4 cards (uv < 3 vs 3 <= uv < 6 vs uv >= 6)
+      const items = [
+        {
+          title: "Slop on SPF 50+ Sunscreen",
+          status: uv >= 3 ? "Essential Now" : "Optional (< UV 3)",
+          detail: uv >= 3
+            ? "Apply 7 teaspoons (35mL) for a full adult body 20 mins before going outside. Reapply every 2 hours or after swimming/sweating."
+            : "Sunscreen is not required when UV is below 3 unless you are at high altitude or near reflective snow/water for extended periods.",
+          tone: uv >= 3 ? "border-amber-200 bg-amber-50/50" : "border-slate-200 bg-slate-50/60"
+        },
+        {
+          title: "Slip on UPF 50+ Clothing & Slap on a Hat",
+          status: uv >= 6 ? "High Priority" : uv >= 3 ? "Recommended" : "Light Layer",
+          detail: uv >= 6
+            ? "Wear tightly woven UPF 50+ collared shirts and a broad-brim (≥7.5cm) or legionnaire hat shading your face, neck, and ears."
+            : uv >= 3
+            ? "Put on a wide-brimmed hat and breathable sun-protective shirt; UV is above the skin-damage threshold even outside peak noon."
+            : "No special UPF clothing required at this hour—dress for temperature comfort.",
+          tone: uv >= 6 ? "border-orange-200 bg-orange-50/50" : uv >= 3 ? "border-amber-200 bg-amber-50/40" : "border-slate-200 bg-slate-50/60"
+        },
+        {
+          title: "Seek Shade & Plan Around Peak Sun",
+          status: uv >= 6 ? "High Priority" : uv >= 3 ? "Use Shade" : "Low UV Window",
+          detail: uv >= 6
+            ? "UV rays are intense right now. Seek trees, canopies, or indoor breaks—and remember UV still reflects off sand, water, and concrete."
+            : uv >= 3
+            ? `UV is in the Moderate damage band (UV ≥ 3). Use shaded paths or canopies where practical${lowUvAdvice}.`
+            : "Great window for outdoor exercise, dog walks, or errands with minimal direct UV stress.",
+          tone: uv >= 6 ? "border-rose-200 bg-rose-50/50" : uv >= 3 ? "border-amber-200 bg-amber-50/40" : "border-emerald-200 bg-emerald-50/40"
+        },
+        {
+          title: "Slide on UV400 Sunglasses",
+          status: uv >= 3 ? "Protect Eyes" : "Optional",
+          detail: uv >= 3
+            ? "Wear close-fitting wraparound sunglasses meeting AS/NZS 1067 Category 2 or 3 (UV400) to block direct and peripheral ocular UV."
+            : "Low ambient UV glare; sunglasses are optional for visual comfort.",
+          tone: uv >= 3 ? "border-amber-200 bg-amber-50/40" : "border-slate-200 bg-slate-50/60"
+        }
+      ];
+
+      grid.innerHTML = items
+        .map(
+          (c) => `
+          <div class="p-3.5 rounded-xl border ${c.tone} flex flex-col justify-between gap-1.5">
+            <div class="flex items-center justify-between gap-2">
+              <h4 class="text-xs font-extrabold text-slate-900">${c.title}</h4>
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-white text-slate-700 border border-slate-200 shrink-0">${c.status}</span>
+            </div>
+            <p class="text-xs text-slate-600 leading-relaxed">${c.detail}</p>
+          </div>
+        `
+        )
+        .join("");
+    }
+
+    function updatePresetHighlight() {
+      document.querySelectorAll(".preset-btn").forEach((btn) => {
+        if (btn.dataset.postcode === state.postcode) {
+          btn.className = "preset-btn px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-100 text-amber-900 border border-amber-300 transition whitespace-nowrap";
+        } else {
+          btn.className = "preset-btn px-2.5 py-1 rounded-lg text-xs font-medium bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 transition whitespace-nowrap";
+        }
+      });
+    }
+
+    // Reapplication Countdown Timer Logic
+    function formatTimerSec(sec) {
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = sec % 60;
+      return [h, m, s].map((v) => String(v).padStart(2, "0")).join(":");
+    }
+
+    function playTimerAlertTone() {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(880, ctx.currentTime);
+        gain.gain.setValueAtTime(0.12, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.6);
+      } catch (e) {
+        // Ignore audio errors
+      }
+    }
+
+    function saveTimerState(obj) {
+      try {
+        window.localStorage.setItem(TIMER_KEY, JSON.stringify(obj));
+      } catch (e) {
+        // Storage not available: the timer still works, it just won't survive a reload
+      }
+    }
+
+    function clearTimerState() {
+      try {
+        window.localStorage.removeItem(TIMER_KEY);
+      } catch (e) {}
+    }
+
+    function updateTabTitle() {
+      document.title = state.timerRunning ? `${formatTimerSec(state.timerRemainingSec)} · SolGuard UV` : BASE_TITLE;
+    }
+
+    // Must be called from a tap, so it is wired to the Start button
+    function maybeRequestNotifications() {
+      try {
+        if ("Notification" in window && Notification.permission === "default") Notification.requestPermission();
+      } catch (e) {}
+    }
+
+    function notifyReapply() {
+      try {
+        if ("Notification" in window && Notification.permission === "granted" && document.visibilityState !== "visible") {
+          const title = "Time to reapply sunscreen";
+          const opts = {
+            body: "It has been 2 hours. Reapply 35mL of SPF 50+.",
+            tag: "solguard-reapply",
+            icon: "icons/icon-192.png"
+          };
+          // Android Chrome and installed PWAs only allow notifications through the service worker
+          if ("serviceWorker" in navigator) {
+            navigator.serviceWorker.ready
+              .then((reg) => reg.showNotification(title, opts))
+              .catch(() => { try { new Notification(title, opts); } catch (e) {} });
+          } else {
+            new Notification(title, opts);
+          }
+        }
+      } catch (e) {}
+    }
+
+    function finishReapplyTimer() {
+      const startBtn = document.getElementById("startTimerBtn");
+      const statusBadge = document.getElementById("timerStatusBadge");
+      const targetClock = document.getElementById("reapplyTargetClock");
+
+      clearInterval(state.timerInterval);
+      state.timerInterval = null;
+      state.timerRunning = false;
+      state.timerEndTs = null;
+      state.timerRemainingSec = 7200;
+      clearTimerState();
+      updateTabTitle();
+      document.getElementById("reapplyTimerDisplay").textContent = formatTimerSec(0);
+      startBtn.textContent = "Restart 2h Timer";
+      statusBadge.textContent = "Reapply Now!";
+      statusBadge.className = "px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500 text-white";
+      targetClock.textContent = "Time is up — reapply 35mL of SPF 50+ now!";
+      playTimerAlertTone();
+      notifyReapply();
+      try {
+        if (navigator.vibrate) navigator.vibrate([300, 150, 300]);
+      } catch (e) {
+        // Vibration is not available everywhere
+      }
+    }
+
+    // The countdown is derived from a wall-clock end time, so it stays accurate even when a phone
+    // throttles or suspends the page (locked screen, background tab).
+    function tickReapplyTimer() {
+      if (!state.timerRunning || state.timerEndTs === null) return;
+      const remaining = Math.max(0, Math.ceil((state.timerEndTs - Date.now()) / 1000));
+      state.timerRemainingSec = remaining;
+      document.getElementById("reapplyTimerDisplay").textContent = formatTimerSec(remaining);
+      if (remaining <= 0) finishReapplyTimer();
+      else updateTabTitle();
+    }
+
+    function toggleReapplyTimer() {
+      const startBtn = document.getElementById("startTimerBtn");
+      const statusBadge = document.getElementById("timerStatusBadge");
+      const targetClock = document.getElementById("reapplyTargetClock");
+
+      if (state.timerRunning) {
+        // Pause: freeze whatever time is left
+        state.timerRemainingSec = Math.max(0, Math.ceil((state.timerEndTs - Date.now()) / 1000));
+        clearInterval(state.timerInterval);
+        state.timerInterval = null;
+        state.timerRunning = false;
+        state.timerEndTs = null;
+        saveTimerState({ mode: "paused", remaining: state.timerRemainingSec });
+        updateTabTitle();
+        startBtn.textContent = "Resume Timer";
+        statusBadge.textContent = "Paused";
+        statusBadge.className = "px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-400/20 text-amber-300";
+        return;
+      }
+
+      state.timerRunning = true;
+      state.timerEndTs = Date.now() + state.timerRemainingSec * 1000;
+      saveTimerState({ mode: "running", endTs: state.timerEndTs });
+      startBtn.textContent = "Pause Timer";
+      statusBadge.textContent = "Counting Down";
+      statusBadge.className = "px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-400/20 text-emerald-300";
+
+      const targetDate = new Date(state.timerEndTs);
+      targetClock.textContent = `Next reapply due at ${targetDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+      document.getElementById("reapplyTimerDisplay").textContent = formatTimerSec(state.timerRemainingSec);
+      updateTabTitle();
+
+      if (state.timerInterval) clearInterval(state.timerInterval);
+      state.timerInterval = setInterval(tickReapplyTimer, 500);
+    }
+
+    function resetReapplyTimer() {
+      if (state.timerInterval) clearInterval(state.timerInterval);
+      state.timerInterval = null;
+      state.timerRunning = false;
+      state.timerEndTs = null;
+      state.timerRemainingSec = 7200;
+      clearTimerState();
+      updateTabTitle();
+      document.getElementById("reapplyTimerDisplay").textContent = "02:00:00";
+      document.getElementById("startTimerBtn").textContent = "Start 2h Timer";
+      document.getElementById("timerStatusBadge").textContent = "Ready";
+      document.getElementById("timerStatusBadge").className = "px-2 py-0.5 rounded text-[10px] font-semibold bg-white/10 text-slate-300";
+      document.getElementById("reapplyTargetClock").textContent = "Start timer when you apply sunscreen";
+    }
+
+    // Pick the timer back up after a reload or after the phone killed the tab
+    function restoreTimerState() {
+      let saved = null;
+      try {
+        const raw = window.localStorage.getItem(TIMER_KEY);
+        saved = raw ? JSON.parse(raw) : null;
+      } catch (e) {
+        saved = null;
+      }
+      if (!saved || typeof saved !== "object") return;
+
+      if (saved.mode === "running" && typeof saved.endTs === "number") {
+        if (saved.endTs > Date.now()) {
+          state.timerRemainingSec = Math.min(7200, Math.ceil((saved.endTs - Date.now()) / 1000));
+          toggleReapplyTimer();
+        } else {
+          // It ran out while the page was closed
+          clearTimerState();
+          state.timerRemainingSec = 7200;
+          document.getElementById("reapplyTimerDisplay").textContent = formatTimerSec(0);
+          document.getElementById("startTimerBtn").textContent = "Restart 2h Timer";
+          const badge = document.getElementById("timerStatusBadge");
+          badge.textContent = "Reapply Now!";
+          badge.className = "px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500 text-white";
+          document.getElementById("reapplyTargetClock").textContent =
+            `Reapply was due at ${new Date(saved.endTs).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit" })}`;
+        }
+      } else if (saved.mode === "paused" && typeof saved.remaining === "number" && saved.remaining > 0 && saved.remaining <= 7200) {
+        state.timerRemainingSec = Math.ceil(saved.remaining);
+        document.getElementById("reapplyTimerDisplay").textContent = formatTimerSec(state.timerRemainingSec);
+        document.getElementById("startTimerBtn").textContent = "Resume Timer";
+        const badge = document.getElementById("timerStatusBadge");
+        badge.textContent = "Paused";
+        badge.className = "px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-400/20 text-amber-300";
+      }
+    }
+
+
+    // ---- Year-round planner: monthly UV pattern for the selected location ----
+    const YEAR_CACHE_PREFIX = "solguard_year_v1_";
+    const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const MONTH_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    const yearState = { seen: false, key: "", data: null, seq: 0, chart: null, loading: false, failedKey: "" };
+
+    function yearKeyFor(lat, lon) {
+      return `${lat.toFixed(1)},${lon.toFixed(1)}`;
+    }
+
+    function summariseYearData(daily) {
+      const buckets = Array.from({ length: 12 }, () => ({ u: [], c: [] }));
+      const t = daily.time || [];
+      for (let i = 0; i < t.length; i++) {
+        const m = Number(String(t[i]).slice(5, 7)) - 1;
+        if (!(m >= 0 && m < 12)) continue;
+        const u = daily.uv_index_max ? daily.uv_index_max[i] : null;
+        const c = daily.uv_index_clear_sky_max ? daily.uv_index_clear_sky_max[i] : null;
+        if (typeof u === "number" && isFinite(u)) buckets[m].u.push(u);
+        if (typeof c === "number" && isFinite(c)) buckets[m].c.push(c);
+      }
+      const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+      const months = buckets.map((b) => {
+        if (b.u.length < 20) return null;
+        const avg = mean(b.u);
+        return {
+          avg: +avg.toFixed(1),
+          clear: b.c.length >= 20 ? +mean(b.c).toFixed(1) : +avg.toFixed(1),
+          pct3: Math.round((100 * b.u.filter((v) => v >= 3).length) / b.u.length)
+        };
+      });
+      return months.every((m) => m) ? months : null;
+    }
+
+    async function loadYearData(lat, lon) {
+      const key = yearKeyFor(lat, lon);
+      const endYear = new Date().getFullYear() - 1;
+      const startYear = endYear - 2;
+      try {
+        const raw = localStorage.getItem(YEAR_CACHE_PREFIX + key);
+        if (raw) {
+          const c = JSON.parse(raw);
+          if (c && c.endYear === endYear && Array.isArray(c.months) && c.months.length === 12) return c.months;
+        }
+      } catch (e) {}
+      const la = (+key.split(",")[0]).toFixed(1);
+      const lo = (+key.split(",")[1]).toFixed(1);
+      const url = `https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=${la}&longitude=${lo}&start_date=${startYear}-01-01&end_date=${endYear}-12-31&daily=uv_index_max,uv_index_clear_sky_max&timezone=auto`;
+      const res = await fetchWithTimeout(url, 20000);
+      if (!res.ok) throw new Error("year data " + res.status);
+      const json = await res.json();
+      const months = json && json.daily ? summariseYearData(json.daily) : null;
+      if (!months) throw new Error("year data incomplete");
+      try {
+        localStorage.setItem(YEAR_CACHE_PREFIX + key, JSON.stringify({ endYear, months }));
+        // Keep the cache small: remember at most 8 locations
+        const idxKey = YEAR_CACHE_PREFIX + "index";
+        let idx = [];
+        try { idx = JSON.parse(localStorage.getItem(idxKey) || "[]"); } catch (e) {}
+        idx = [key].concat(idx.filter((k) => k !== key));
+        idx.slice(8).forEach((k) => localStorage.removeItem(YEAR_CACHE_PREFIX + k));
+        localStorage.setItem(idxKey, JSON.stringify(idx.slice(0, 8)));
+      } catch (e) {}
+      return months;
+    }
+
+    // Runs of months (wrapping around the year end) where UV is under 3 on most days
+    function lowUvRuns(months) {
+      // Model UV can read up to about 10% under official figures, so a month only counts as "low" when UV is under 3 on most days AND the typical peak sits clearly below 3
+      const low = months.map((m) => m.pct3 < 50 && m.avg < 2.7);
+      if (low.every(Boolean)) return { all: true, runs: [] };
+      const runs = [];
+      for (let i = 0; i < 12; i++) {
+        if (low[i] && !low[(i + 11) % 12]) {
+          let j = i;
+          while (low[(j + 1) % 12]) j = (j + 1) % 12;
+          runs.push({ start: i, end: j });
+        }
+      }
+      return { all: false, runs };
+    }
+
+    const joinList = (a) => (a.length > 1 ? a.slice(0, -1).join(", ") + " and " + a[a.length - 1] : a.join(""));
+
+    function buildYearInsight(months) {
+      const maxI = months.reduce((b, m, i) => (m.avg > months[b].avg ? i : b), 0);
+      const minI = months.reduce((b, m, i) => (m.avg < months[b].avg ? i : b), 0);
+      const { all, runs } = lowUvRuns(months);
+      const watchIdx = months.map((m, i) => i).filter((i) => months[i].pct3 < 50 && months[i].avg >= 2.7);
+      const watchText = watchIdx.length
+        ? ` ${joinList(watchIdx.map((i) => MONTH_LONG[i]))} ${watchIdx.length > 1 ? "are" : "is"} borderline (typical peak close to 3), so treat ${watchIdx.length > 1 ? "them" : "it"} as ${watchIdx.length > 1 ? "watch months" : "a watch month"}.`
+        : "";
+      const peakText = `Highest in ${MONTH_LONG[maxI]} (typical daily peak UV ${months[maxI].avg}).`;
+      if (all) {
+        return `UV stays under 3 on most days all year here. Lowest in ${MONTH_LONG[minI]} (${months[minI].avg}). ${peakText}`;
+      }
+      if (!runs.length) {
+        const lead = watchIdx.length
+          ? `UV reaches 3 or more on most days in nearly every month here, so sun protection matters all year.`
+          : `UV reaches 3 or more on most days in every month here, so sun protection matters all year.`;
+        return `${lead} It is lowest in ${MONTH_LONG[minI]} (typical daily peak UV ${months[minI].avg}).${watchText} ${peakText}`;
+      }
+      const fmt = (r) => (r.start === r.end ? MONTH_LONG[r.start] : `${MONTH_LONG[r.start]} to ${MONTH_LONG[r.end]}`);
+      const lowText = joinList(runs.map(fmt));
+      const watch = joinList(runs.map((r) => MONTH_LONG[(r.end + 1) % 12]));
+      return `UV is usually under 3 in ${lowText}. Start watching more closely from ${watch}, when UV climbs back to 3 or more on most days.${watchText} ${peakText}`;
+    }
+
+    function setYearStatus(html, showRetry) {
+      const el = document.getElementById("yearStatus");
+      if (!html) { el.classList.add("hidden"); el.textContent = ""; return; }
+      el.classList.remove("hidden");
+      el.textContent = html;
+      if (showRetry) {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "ml-2 underline font-semibold text-slate-800";
+        b.textContent = "Try again";
+        b.addEventListener("click", () => { yearState.failedKey = ""; ensureYearChart(); });
+        el.appendChild(b);
+      }
+    }
+
+    function renderYearChart(months) {
+      const canvas = document.getElementById("yearChart");
+      if (typeof Chart === "undefined") { setYearStatus("The chart library could not be loaded.", false); return; }
+      const now = locationNow();
+      const curMonth = now.date ? Number(now.date.slice(5, 7)) - 1 : new Date().getMonth();
+      const bars = months.map((m) => m.avg);
+      const clear = months.map((m) => m.clear);
+      const bg = months.map((m, i) => getUvRiskMeta(m.avg).hex + (i === curMonth ? "" : "d9"));
+      const bw = months.map((_, i) => (i === curMonth ? 2.5 : 0));
+      const yMax = Math.max(12, Math.ceil(Math.max(...clear) + 1));
+      canvas.setAttribute(
+        "aria-label",
+        "Typical daily peak UV by month: " + months.map((m, i) => `${MONTH_SHORT[i]} ${m.avg}`).join(", ")
+      );
+
+      if (yearState.chart) {
+        const c = yearState.chart;
+        c.data.datasets[0].data = bars;
+        c.data.datasets[0].backgroundColor = bg;
+        c.data.datasets[0].borderWidth = bw;
+        c.data.datasets[1].data = clear;
+        c.options.scales.y.max = yMax;
+        c.$months = months;
+        c.update();
+        return;
+      }
+      const chart = new Chart(canvas.getContext("2d"), {
+        type: "bar",
+        data: {
+          labels: MONTH_SHORT,
+          datasets: [
+            { type: "bar", label: "Typical daily peak", data: bars, backgroundColor: bg, borderColor: "#0f172a", borderWidth: bw, borderRadius: 5, order: 3 },
+            { type: "line", label: "Clear-sky ceiling", data: clear, borderColor: "#4f46e5", borderDash: [4, 4], borderWidth: 2, pointRadius: 2.5, pointBackgroundColor: "#4f46e5", fill: false, tension: 0.3, order: 1 },
+            { type: "line", label: "UV 3", data: MONTH_SHORT.map(() => 3), borderColor: "rgba(225, 29, 72, 0.7)", borderWidth: 1.5, pointRadius: 0, fill: false, order: 2 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: "rgba(15, 23, 42, 0.9)",
+              padding: 8,
+              displayColors: false,
+              titleFont: { family: "Inter", size: 11, weight: "bold" },
+              bodyFont: { family: "Inter", size: 11 },
+              filter: (item) => item.datasetIndex !== 2,
+              callbacks: {
+                title: (items) => (items[0] ? MONTH_LONG[items[0].dataIndex] : ""),
+                label: (item) => {
+                  const m = (item.chart.$months || [])[item.dataIndex];
+                  if (item.datasetIndex === 0) return `Typical daily peak: UV ${item.parsed.y} (${getUvRiskMeta(item.parsed.y).level})`;
+                  return `Clear-sky ceiling: UV ${item.parsed.y}` + (m ? ` | UV 3+ on ${m.pct3}% of days` : "");
+                }
+              }
+            }
+          },
+          scales: {
+            x: { grid: { display: false }, ticks: { font: { family: "Inter", size: 11 }, color: "#475569" } },
+            y: { min: 0, max: yMax, ticks: { stepSize: 2, font: { family: "Inter", size: 11 }, color: "#475569" }, grid: { color: "rgba(148, 163, 184, 0.25)" }, title: { display: true, text: "UV index", font: { family: "Inter", size: 11 }, color: "#475569" } }
+          }
+        }
+      });
+      chart.$months = months;
+      yearState.chart = chart;
+    }
+
+    async function ensureYearChart() {
+      if (!yearState.seen) return;
+      const key = yearKeyFor(state.lat, state.lon);
+      const label = document.getElementById("yearLocationLabel");
+      label.textContent = `${state.locationName} (average of ${new Date().getFullYear() - 3} to ${new Date().getFullYear() - 1})`;
+      if (yearState.data && yearState.key === key) {
+        try { renderYearChart(yearState.data); } catch (e) {} // same place: just refresh the "this month" highlight
+        return;
+      }
+      if (yearState.failedKey === key || (yearState.loading && yearState.loadingKey === key)) return;
+      const mySeq = ++yearState.seq;
+      yearState.loading = true;
+      yearState.loadingKey = key;
+      document.getElementById("yearInsight").textContent = "Loading the yearly pattern for this location...";
+      setYearStatus("", false);
+      try {
+        const months = await loadYearData(state.lat, state.lon);
+        if (mySeq !== yearState.seq) return;
+        yearState.data = months;
+        yearState.key = key;
+        document.getElementById("yearInsight").textContent = buildYearInsight(months);
+        setYearStatus("", false);
+        renderYearChart(months);
+      } catch (e) {
+        console.warn("SolGuard yearly data:", e);
+        if (mySeq !== yearState.seq) return;
+        yearState.failedKey = key;
+        document.getElementById("yearInsight").textContent = "The yearly pattern isn't available right now.";
+        setYearStatus("Couldn't load the yearly data. Check your connection.", true);
+      } finally {
+        if (mySeq === yearState.seq) yearState.loading = false;
+      }
+    }
+
+    function initYearCard() {
+      const card = document.getElementById("yearCard");
+      if (!card) return;
+      const start = () => { yearState.seen = true; ensureYearChart(); };
+      if (typeof IntersectionObserver === "undefined") { start(); return; }
+      const io = new IntersectionObserver((entries) => {
+        if (entries.some((e) => e.isIntersecting)) { io.disconnect(); start(); }
+      }, { rootMargin: "300px" });
+      io.observe(card);
+    }
+
+    // Initialize App & Event Listeners
+    window.addEventListener("DOMContentLoaded", () => {
+      const now = new Date();
+      const dateStr = now.toLocaleDateString("en-AU", {
+        weekday: "long",
+        day: "numeric",
+        month: "short",
+        year: "numeric"
+      });
+      document.getElementById("currentDateDisplay").textContent = `${dateStr} • UV tracker for any postcode or suburb`;
+
+      // Provisional values from the device clock; replaced with the location's own hour once UV data loads
+      state.currentLocalHour = now.getHours();
+      state.selectedHour = state.currentLocalHour >= 5 && state.currentLocalHour <= 20 ? state.currentLocalHour : 12;
+
+      // Load saved user preferences from localStorage (or fall back to default 2000)
+      loadPreferencesFromStorage();
+      syncControlsWithState();
+      initYearCard();
+
+      // Compact header on scroll.
+      // The header is position:fixed with a spacer holding its expanded height, so collapsing or expanding it
+      // never changes the page layout. (A sticky header that changed height moved the content and the scroll
+      // position under the browser's feet, which flipped the header state again and caused flicker.)
+      const headerEl = document.getElementById("mainHeader");
+      const spacerEl = document.getElementById("headerSpacer");
+      const drawerEl = document.getElementById("headerControlsDrawer");
+      let collapseAt = 100;
+      function measureHeader() {
+        // Natural expanded height, independent of the drawer's current (possibly mid-transition) height
+        const expanded = headerEl.offsetHeight - drawerEl.offsetHeight + drawerEl.scrollHeight;
+        collapseAt = Math.max(48, drawerEl.scrollHeight);
+        if (Math.abs(spacerEl.offsetHeight - expanded) > 1) spacerEl.style.height = expanded + "px";
+      }
+      function updateHeaderState() {
+        const y = window.scrollY;
+        // Collapse once the content has reached the compact header's bottom edge; expand again a little earlier
+        if (y > collapseAt && !state.manualHeaderExpanded) {
+          headerEl.classList.add("header-compact");
+        } else if (y <= collapseAt - 24) {
+          if (y <= 20) state.manualHeaderExpanded = false;
+          if (!state.manualHeaderExpanded) headerEl.classList.remove("header-compact");
+        }
+      }
+      let headerTick = false;
+      window.addEventListener(
+        "scroll",
+        () => {
+          if (headerTick) return;
+          headerTick = true;
+          requestAnimationFrame(() => {
+            headerTick = false;
+            updateHeaderState();
+          });
+        },
+        { passive: true }
+      );
+      measureHeader();
+      window.addEventListener("resize", measureHeader);
+      window.addEventListener("load", measureHeader);
+      if (typeof ResizeObserver !== "undefined") new ResizeObserver(measureHeader).observe(headerEl);
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(measureHeader);
+      updateHeaderState();
+
+      document.getElementById("mobileExpandHeaderBtn").addEventListener("click", () => {
+        const isCompact = headerEl.classList.contains("header-compact");
+        if (isCompact) {
+          state.manualHeaderExpanded = true;
+          headerEl.classList.remove("header-compact");
+          document.getElementById("postcodeInput").focus();
+        } else {
+          state.manualHeaderExpanded = false;
+          headerEl.classList.add("header-compact");
+        }
+      });
+
+      // Form Submission
+      document.getElementById("postcodeForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const val = document.getElementById("postcodeInput").value.trim();
+        if (!val) return;
+        hideToast();
+        hidePlaceResults();
+        state.manualHeaderExpanded = false;
+        if (/^\d{3,5}$/.test(val)) {
+          loadUvForPostcode(val, true, { offerChoice: true });
+        } else {
+          searchPlacesByName(val);
+        }
+      });
+
+      // Get Location Button
+      document.getElementById("getLocationBtn").addEventListener("click", () => {
+        document.getElementById("statusToast").classList.add("hidden");
+        requestDeviceLocation(false);
+      });
+
+      // Auto-Locate on Startup Toggle
+      document.getElementById("autoLocateToggle").addEventListener("change", (e) => {
+        state.autoLocate = Boolean(e.target.checked);
+        savePreferencesToStorage();
+        if (state.autoLocate) {
+          requestDeviceLocation(false);
+        } else {
+          showToast("Auto-locate on startup turned off. Your saved postcode will be used on launch.", "sky");
+        }
+      });
+
+      // Preset Postcode Buttons
+      document.querySelectorAll(".preset-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const code = btn.dataset.postcode;
+          document.getElementById("postcodeInput").value = code;
+          document.getElementById("statusToast").classList.add("hidden");
+          state.manualHeaderExpanded = false;
+          loadUvForPostcode(code, true);
+        });
+      });
+
+      // Reset Preferences Button
+      document.getElementById("resetPrefsBtn").addEventListener("click", () => {
+        state.postcode = DEFAULT_POSTCODE;
+        state.locationName = POSTCODE_DB[DEFAULT_POSTCODE].name;
+        state.lat = POSTCODE_DB[DEFAULT_POSTCODE].lat;
+        state.lon = POSTCODE_DB[DEFAULT_POSTCODE].lon;
+        state.skinTypeId = 2;
+        state.spf = 50;
+        state.surfaceMultiplier = 1.0;
+        state.surfaceLabel = "Standard";
+        state.autoLocate = false;
+        try {
+          if (window.localStorage) window.localStorage.removeItem(STORAGE_KEY);
+        } catch (e) {}
+        syncControlsWithState();
+        loadUvForPostcode(DEFAULT_POSTCODE, false);
+        showToast("Preferences reset to default (2000 Sydney, Skin Type II, SPF 50+).", "sky");
+      });
+
+      // Close Toast
+      document.getElementById("closeToastBtn").addEventListener("click", () => {
+        document.getElementById("statusToast").classList.add("hidden");
+      });
+
+      // Time Slider
+      document.getElementById("hourSlider").addEventListener("input", (e) => {
+        state.selectedHour = parseInt(e.target.value, 10);
+        renderAll();
+      });
+
+      // Jump to Peak UV Button
+      document.getElementById("jumpToPeakBtn").addEventListener("click", () => {
+        const summary = computeDailySummary();
+        state.selectedHour = Math.min(20, Math.max(5, summary.peakHour));
+        renderAll();
+      });
+
+      // Reset to Current Hour Button
+      document.getElementById("resetNowBtn").addEventListener("click", () => {
+        state.selectedHour = defaultSelectedHour();
+        renderAll();
+      });
+
+      // SPF Buttons
+      document.querySelectorAll(".spf-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          state.spf = parseInt(btn.dataset.spf, 10);
+          savePreferencesToStorage();
+          syncControlsWithState();
+          renderAll();
+        });
+      });
+
+      // Surface Reflection Buttons
+      document.querySelectorAll(".surface-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          state.surfaceMultiplier = parseFloat(btn.dataset.surface);
+          state.surfaceLabel = btn.dataset.label;
+          savePreferencesToStorage();
+          syncControlsWithState();
+          renderAll();
+        });
+      });
+
+      // Reapplication Timer Buttons
+      document.getElementById("startTimerBtn").addEventListener("click", () => {
+        if (!state.timerRunning) maybeRequestNotifications();
+        toggleReapplyTimer();
+      });
+      document.getElementById("resetTimerBtn").addEventListener("click", resetReapplyTimer);
+      // Catch up immediately when the person returns to the tab or unlocks their phone
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          tickReapplyTimer();
+          tickClock();
+        }
+      });
+
+      // Place search results: pick one, or close the card
+      document.getElementById("placeResultsList").addEventListener("click", (e) => {
+        const b = e.target.closest("button[data-idx]");
+        if (!b) return;
+        const r = state.placeResults[parseInt(b.dataset.idx, 10)];
+        if (r) selectPlace(r);
+      });
+      document.getElementById("closePlaceResultsBtn").addEventListener("click", hidePlaceResults);
+      // Tapping the search box selects its text, so typing replaces the current location
+      document.getElementById("postcodeInput").addEventListener("focus", (e) => e.target.select());
+
+      // Initial load: reuse the saved location as it is (postcode, suburb or GPS fix), otherwise the 2000 default.
+      // If auto-locate is on, a GPS fix then replaces it.
+      if (state.hasSavedLocation) {
+        fetchUvDataForCurrentCoords();
+      } else {
+        loadUvForPostcode(DEFAULT_POSTCODE, false);
+      }
+      if (state.autoLocate) {
+        requestDeviceLocation(true);
+      }
+      restoreTimerState();
+      setInterval(tickClock, 30000);
+    });
+  </script>
+  <script>
+    // Offline support / installability (needs https or localhost)
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>

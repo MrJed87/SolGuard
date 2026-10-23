@@ -1,0 +1,17 @@
+{
+  "name": "solguard-uv",
+  "version": "0.6.3",
+  "description": "Free, single-page UV and sunburn-risk tracker",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "build:css": "tailwindcss -c tailwind.config.js -i src/input.css -o assets/tailwind.css --minify",
+    "watch:css": "tailwindcss -c tailwind.config.js -i src/input.css -o assets/tailwind.css --watch",
+    "update:vendor": "node scripts/copy-vendor.js"
+  },
+  "devDependencies": {
+    "@fontsource/inter": "^5.0.0",
+    "chart.js": "4.4.1",
+    "tailwindcss": "3.4.17"
+  }
+}
