@@ -1,6 +1,6 @@
 {
   "name": "solguard-uv",
-  "version": "0.6.4",
+  "version": "0.7.0",
   "description": "Free, single-page UV and sunburn-risk tracker",
   "private": true,
   "license": "MIT",
