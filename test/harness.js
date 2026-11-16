@@ -17,7 +17,10 @@ const EXPORTS = [
   "generateSolarModelUv", "inferAusPostcodeRegion", "formatFractionalHour12", "formatHour12",
   "loadPreferencesFromStorage", "savePreferencesToStorage", "loadUvForPostcode",
   "fetchUvDataForCurrentCoords", "requestDeviceLocation", "renderAll", "summariseYearData",
-  "lowUvRuns", "buildYearInsight"
+  "lowUvRuns", "buildYearInsight", "clearSkyUvForSun", "setViewDay", "normalisePostcode",
+  "postcodeLookupKey", "looksLikePostcode", "searchPlacesByName", "rememberPlace", "renderPlaceChips",
+  "formatDuration", "formatBurnMins", "showToast", "toggleReapplyTimer", "COUNTRIES",
+  "modelNoonClearUv", "uvCorrectionFactor", "dayOfYearFor"
 ];
 
 function inlineScript() {
@@ -86,7 +89,9 @@ function loadApp(opts = {}) {
   const sandbox = {
     document, window, localStorage, console, URLSearchParams, AbortController, Date, Math,
     navigator: opts.geolocation ? { geolocation: opts.geolocation } : {},
-    setTimeout, clearTimeout,
+    // The app's own timers (message auto-dismiss, slow-lookup notes) must not keep the test process alive
+    setTimeout: (fn, ms) => { const t = setTimeout(fn, ms); t.unref(); return t; },
+    clearTimeout,
     setInterval: () => 0,
     clearInterval() {},
     fetchImpl: opts.fetch || (async () => { throw new Error("offline"); }),
