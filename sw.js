@@ -1,12 +1,12 @@
 // SolGuard UV service worker: keeps the app shell available offline.
 // Network first (so updates always arrive when online), falling back to the cache.
 // Forecast/API requests are never cached: the app shows its own clear-sky fallback when offline.
-const CACHE = "solguard-v0.6.3";
+const CACHE = "solguard-v0.6.4";
 const SHELL = [
   "./",
   "index.html",
   "manifest.webmanifest",
-  "assets/tailwind.css?v=0.6.3",
+  "assets/tailwind.css?v=0.6.4",
   "assets/chart.umd.min.js",
   "assets/fonts/inter-latin-400-normal.woff2",
   "assets/fonts/inter-latin-500-normal.woff2",
