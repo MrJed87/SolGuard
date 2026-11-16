@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.6.4 (2026-11-16)
+Fixes from a full audit.
+- **Surface boost now reaches the protection window.** The UV 3 window, the day's peak and the "now" line use the same boosted UV as the gauge and chart. Before, with Fresh Snow selected the gauge could read "Moderate" while the status line said protection wasn't needed.
+- **No made-up readings while loading.** The page no longer shows sample numbers (UV 4.7, "~32 mins", "9:15 AM – 4:45 PM") before real data arrives or when the script can't run; it shows dashes and "Loading" instead.
+- **Evening UV is no longer clamped to 0.2 from 8 pm to 5 am.** The timing adjustment now applies to every hour, so places where the clock runs ahead of the sun keep their real evening UV.
+- **A failed postcode lookup no longer sticks.** A regional guess is remembered as a guess and looked up again next time, instead of being reused forever.
+- Low-UV wording no longer says "without burn risk" next to a burn time.
+- The reapply timer's note and the README now say plainly that the notification only works while the page is still running, and suggest a phone alarm as a backup.
+- Privacy: coordinates are rounded before they are sent (about 1 km for the forecast, about 100 m for the suburb lookup), and a GPS fix is stored at about 100 m.
+- Accessibility: darker UV colours for the hour buttons and one section label (now at least 4.5:1), keyboard focus stays put when you pick an hour or skin type, messages are announced to screen readers, the "now" line is announced only when its answer changes, and the collapsed mobile search controls leave the tab order.
+- Added `npm test` (Node's built-in test runner, no new dependencies) and a GitHub Actions workflow.
+- README: noted that the UV model still needs checking against official summer measurements.
+
 ## 0.6.3 (2026-10-23)
 - Seasonal chart legend now explains the outlined bar (the current month).
 
